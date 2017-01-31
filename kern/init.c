@@ -35,6 +35,9 @@ i386_init(void)
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
 
+    /* cprintf("[32;45m395[40;31m decimal [37mis %o octal!\n", 395); */
+    /* why can't produce color? @TODO */
+
 	// Test the stack backtrace function (lab 1 only)
 	test_backtrace(5);
 

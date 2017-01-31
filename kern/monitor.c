@@ -115,9 +115,19 @@ monitor(struct Trapframe *tf)
 	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
 
+    /* int x = 1, y = 3, z = 4; */
+    /* cprintf("x %d, y %x, z %d\n", x, y, z); */
 
-	while (1) {
-		buf = readline("K> ");
+    /* unsigned int i = 0x00646c72; */
+    /* cprintf("H%x Wo%s\n", 57616, &i); */
+
+    /* can't work! */
+    /* @TODO ref:http://os-tres.net/blog/2012/11/05/the-cs372h-operating-systems-class-lab-1/ */
+    /* cprintf("[32;45m395[40;31m decimal [37mis %o octal!\n", 395); */
+    /* cprintf("[32;45mHello[40;31m, colorful[37m world!\n"); */
+
+    while (1) {
+        buf = readline("K> ");
 		if (buf != NULL)
 			if (runcmd(buf, tf) < 0)
 				break;
