@@ -24,6 +24,7 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Display backtrace of all stack frames", mon_backtrace },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -57,7 +58,36 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	// Your code here.
+    uint8_t max_num_args = 5, i;
+    uint32_t current_ebp, prev_ebp, saved_eip;
+    uint32_t args[max_num_args];
+    char *addr_fmt = "  ebp %08x eip %08x args %08x %08x %08x %08x %08x\n";
+    char *stack_info = "\t%s:%d: %.*s+%d\n";
+    struct Eipdebuginfo eip_info;
+
+	cprintf("Stack backtrace\n");
+    current_ebp = read_ebp();
+
+    while(current_ebp !=0) {
+        prev_ebp =  read_byte_at_addr((uint32_t *) current_ebp);
+        saved_eip = read_byte_at_addr((uint32_t *) \
+                (current_ebp + 1 * sizeof(uint32_t)));
+
+        for (i = 0; i < max_num_args; i++) {
+            args[i] = read_byte_at_addr((uint32_t *) (current_ebp + (i + 2) * \
+                        sizeof(uint32_t)));
+        }
+
+        cprintf(addr_fmt, current_ebp, saved_eip, args[0], args[1], args[2], \
+                args[3], args[4]);
+
+        debuginfo_eip(saved_eip, &eip_info);
+        cprintf(stack_info, eip_info.eip_file, eip_info.eip_line, \
+                eip_info.eip_fn_namelen, eip_info.eip_fn_name, \
+                saved_eip - eip_info.eip_fn_addr);
+
+        current_ebp = prev_ebp;
+    }
 	return 0;
 }
 
@@ -115,9 +145,19 @@ monitor(struct Trapframe *tf)
 	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
 
+    /* int x = 1, y = 3, z = 4; */
+    /* cprintf("x %d, y %x, z %d\n", x, y, z); */
 
-	while (1) {
-		buf = readline("K> ");
+    /* unsigned int i = 0x00646c72; */
+    /* cprintf("H%x Wo%s\n", 57616, &i); */
+
+    /* can't work! */
+    /* @TODO ref:http://os-tres.net/blog/2012/11/05/the-cs372h-operating-systems-class-lab-1/ */
+    /* cprintf("[32;45m395[40;31m decimal [37mis %o octal!\n", 395); */
+    /* cprintf("[32;45mHello[40;31m, colorful[37m world!\n"); */
+
+    while (1) {
+        buf = readline("K> ");
 		if (buf != NULL)
 			if (runcmd(buf, tf) < 0)
 				break;

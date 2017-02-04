@@ -3,16 +3,16 @@
 #include <inc/mmu.h>
 #include <inc/memlayout.h>
 
-# Shift Right Logical 
+# Shift Right Logical
 #define SRL(val, shamt)		(((val) >> (shamt)) & ~(-1 << (32 - (shamt))))
 
 
 ###################################################################
-# The kernel (this code) is linked at address ~(KERNBASE + 1 Meg), 
+# The kernel (this code) is linked at address ~(KERNBASE + 1 Meg),
 # but the bootloader loads it at address ~1 Meg.
-#	
+#
 # RELOC(x) maps a symbol x from its link address to its actual
-# location in physical memory (its load address).	 
+# location in physical memory (its load address).
 ###################################################################
 
 #define	RELOC(x) ((x) - KERNBASE)
@@ -41,7 +41,7 @@ _start = RELOC(entry)
 
 .globl entry
 entry:
-	movw	$0x1234,0x472			# warm boot
+	movw	$0x1234,0x472			# Tell the bios to warm boot next time(0x472)
 
 	# We haven't set up virtual memory yet, so we're running from
 	# the physical address the boot loader loaded the kernel at: 1MB
@@ -91,6 +91,5 @@ spin:	jmp	spin
 	.globl		bootstack
 bootstack:
 	.space		KSTKSIZE
-	.globl		bootstacktop   
+	.globl		bootstacktop
 bootstacktop:
-
