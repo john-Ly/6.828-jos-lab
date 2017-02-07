@@ -186,6 +186,7 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
+ 	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -198,6 +199,7 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
+  	boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -207,6 +209,18 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
+    //
+    //----------------------------------------------------------------------------------
+    // Well, 2^32 is beyond the range that "int" can represent;
+    //
+    // short int n=-1;
+    // (unsigned short int)n;   signal -> unsignal (get two's complement representation) 65535 = 2^16
+    //
+    // 2^32 - KERNBASE = (2^32 - KERNBASE) % 2^32 = -KERNBASE (signal)
+    // size_t == uint32
+    // so,  -KERNBASE is 0x1000-0000 positive (KERNBASE == 0xF000-0000)
+    //----------------------------------------------------------------------------------
+  	boot_map_region(kern_pgdir, KERNBASE, -KERNBASE, 0, PTE_W | PTE_P);
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
