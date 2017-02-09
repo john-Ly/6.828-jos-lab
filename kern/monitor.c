@@ -10,6 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
+#include <kern/pmap.h>
 
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
@@ -25,6 +26,8 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display backtrace of all stack frames", mon_backtrace },
+    { "showmappings", "Display backtrace of all stack frames", mon_showmappings },
+    { "setperms", "Display backtrace of all stack frames", mon_setperms },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -91,6 +94,125 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+char * // pte's low 12-bit -- I remeber it's a interview question :(
+convert_12bit_to_binary(uint32_t raw_binary) {
+    // can use strlen for the general case
+    static char *output = "000000000000";
+    int i;
+
+    for (i = 11; i >= 0; i--) {
+        if (raw_binary & 0x1)
+            output[i] = '1';
+        else
+            output[i] = '0';
+        raw_binary = raw_binary >> 1;
+    }
+    return output;
+}
+
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 3) {
+        cprintf("Usage: showmappings 0xbegin_addr 0xend_addr\n");
+        return 0;
+    }
+
+    pte_t *pte;
+    pte_t pte_copy;
+
+    char *end_ptr = argv[1] + strlen(argv[1]) + 1;
+    uintptr_t current_va = (uintptr_t) strtol(argv[1], &end_ptr, 16);
+    end_ptr = argv[2] + strlen(argv[2]) + 1;
+    uintptr_t end_va = (uintptr_t) strtol(argv[2], &end_ptr, 16);
+
+    if (current_va != ROUNDUP(current_va,PGSIZE) ||
+            end_va != ROUNDUP(end_va,PGSIZE) ||
+            current_va > end_va) {
+        cprintf("showmappings: Invalid address\n");
+        return 0;
+    }
+
+    /*
+    in while(), continue won't change the iteration variable
+    in for(), continue will change the iteration variable
+    so, for() loop is a goot coding style
+
+    while ( condition ) {
+        if ( condition ) {
+            ...
+            current_va += PGSIZE; @DONE!!!!!!!!!!!!!!!!!!!
+            continue;
+        } else { ... }
+        ...
+        current_va += PGSIZE;
+    }
+    */
+
+    for (; current_va <= end_va; current_va += PGSIZE) {
+        pte = pgdir_walk(kern_pgdir, (void *) current_va, 0); // '0' shouldn't create
+        if (!pte || !(*pte & PTE_P)) {
+            cprintf("virtual <%08x> - not mapped\n", current_va);
+            continue;
+        } else {
+            // cause '[' is used for escape sequence in lab-1 challenge
+            cprintf("virtual <%08x> - physical <%08x> - perm ", current_va, PTE_ADDR(*pte));
+            pte_copy = *pte;
+
+            cprintf("<");
+            for (int i = 0; i < 9; i++) {
+                if (pte_copy & PTE_AVAIL) {
+                    cprintf("AV");
+                    pte_copy &= ~PTE_AVAIL; // turn that bit off
+                } else if (pte_copy & PTE_G) {
+                    cprintf("G");
+                    pte_copy &= ~PTE_G;
+                } else if (pte_copy & PTE_PS) {
+                    cprintf("PS");
+                    pte_copy &= ~PTE_PS;
+                } else if (pte_copy & PTE_D) {
+                    cprintf("D");
+                    pte_copy &= ~PTE_D;
+                } else if (pte_copy & PTE_A) {
+                    cprintf("A");
+                    pte_copy &= ~PTE_A;
+                } else if (pte_copy & PTE_PCD) {
+                    cprintf("CD");
+                    pte_copy &= ~PTE_PCD;
+                } else if (pte_copy & PTE_PWT) {
+                    cprintf("WT");
+                    pte_copy &= ~PTE_PWT;
+                } else if (pte_copy & PTE_U) {
+                    cprintf("U");
+                    pte_copy &= ~PTE_U;
+                } else if (pte_copy & PTE_W) {
+                    cprintf("W");
+                    pte_copy &= ~PTE_W;
+                } else {
+                    cprintf("-");
+                }
+            } // for()
+            cprintf("P"); // the page is present
+        }
+        // (*pte & 0xfff) --> fetch the low 12-bit
+        cprintf("> <%s>\n", convert_12bit_to_binary(*pte & 0xFFF));
+    }
+    return 0;
+}
+
+int
+mon_setperms(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 1) {
+        cprintf("Usage: setm 0xaddr [0|1 :clear or set] [P|W|U]\n");
+        return 0;
+    }
+    pte_t *pte;
+    pde_t *pde;
+    char *end_ptr = argv[1] + strlen(argv[1]) + 1;
+    uintptr_t va = (uintptr_t) strtol(argv[1], &end_ptr, 16);
+    end_ptr = argv[2] + strlen(argv[2]) + 1;
+    uintptr_t perms = (uintptr_t) strtol(argv[2], &end_ptr, 16);
+
+}
 
 
 /***** Kernel monitor command interpreter *****/
@@ -144,6 +266,9 @@ monitor(struct Trapframe *tf)
 
 	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
+
+    /* if (0xffff0000 == ROUNDUP(0xffff0000,PGSIZE) ) */
+        /* cprintf("YES\n"); */
 
     /* int x = 1, y = 3, z = 4; */
     /* cprintf("x %d, y %x, z %d\n", x, y, z); */

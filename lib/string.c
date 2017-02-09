@@ -236,7 +236,7 @@ memfind(const void *s, int c, size_t n)
 	return (void *) s;
 }
 
-long
+long  // why need endptr ???
 strtol(const char *s, char **endptr, int base)
 {
 	int neg = 0;
@@ -282,4 +282,3 @@ strtol(const char *s, char **endptr, int base)
 		*endptr = (char *) s;
 	return (neg ? -val : val);
 }
-

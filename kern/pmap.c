@@ -125,6 +125,15 @@ mem_init(void)
 	uint32_t cr0;
 	size_t n;
 
+    // Check for Page Size Extension support.
+	uint32_t edx = 0;
+	const uint32_t pse_bit = 0x8;
+	cpuid(1, NULL, NULL, NULL, &edx);
+	if (edx & pse_bit)
+        cprintf("4M page is supported!\n");
+    else
+        cprintf("Only 4K page is supported.\n");
+
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
 
@@ -224,6 +233,9 @@ mem_init(void)
 
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
+
+	//Turn on CR4_PSE for 4MB page  @TODO
+	/* lcr4(cr4 | CR4_PSE); */
 
 	// Switch from the minimal entry page directory to the full kern_pgdir
 	// page table we just created.	Our instruction pointer should be
@@ -439,6 +451,21 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
     uint64_t end_va = current_va + size;
     // The highest possible address of a virtual page - 0xFFFFF000
     uint32_t last_page_addr = 4294963200LL;
+
+	// 4MB pages mapping
+		if (perm & PTE_PS) {
+				for (i = 0; i < size; i += LPGSIZE) {
+						pte = pgdir + PDX(current_va);
+						if (pte) {
+								*pte = (current_pa | perm | PTE_P);
+						}
+
+						// check
+						if(current_va == last_page_addr)
+								break;
+				}
+				return;
+		}
 
     for(i=0; i<size; i+=PGSIZE) {
         pte = pgdir_walk(pgdir, (void *)(current_va), 1);
@@ -773,6 +800,11 @@ check_va2pa(pde_t *pgdir, uintptr_t va)
 	pgdir = &pgdir[PDX(va)];
 	if (!(*pgdir & PTE_P))
 		return ~0;
+
+	// 4MB pages
+  if (*pgdir & PTE_PS)
+      return LPTE_ADDR(*pgdir) | LPGOFF(va);
+  // 4KB pages
 	p = (pte_t*) KADDR(PTE_ADDR(*pgdir));
 	if (!(p[PTX(va)] & PTE_P))
 		return ~0;
