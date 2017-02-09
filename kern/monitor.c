@@ -97,15 +97,18 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 char * // pte's low 12-bit -- I remeber it's a interview question :(
 convert_12bit_to_binary(uint32_t raw_binary) {
     // can use strlen for the general case
-    static char *output = "000000000000";
+    // @XXX fatal error : char *a = "xxxx";
+    // It's a constant string variable above(can not be edited)
+    static char output[] = "000000000000";
+    uint32_t bin = raw_binary;
     int i;
 
     for (i = 11; i >= 0; i--) {
-        if (raw_binary & 0x1)
+        if (bin & 0x1)
             output[i] = '1';
         else
             output[i] = '0';
-        raw_binary = raw_binary >> 1;
+        bin = bin >> 1;
     }
     return output;
 }
@@ -140,7 +143,7 @@ mon_showmappings(int argc, char **argv, struct Trapframe *tf) {
     while ( condition ) {
         if ( condition ) {
             ...
-            current_va += PGSIZE; @DONE!!!!!!!!!!!!!!!!!!!
+            current_va += PGSIZE; @NOTE!!!!!!!!!!!!!!!!!!!
             continue;
         } else { ... }
         ...
@@ -194,17 +197,18 @@ mon_showmappings(int argc, char **argv, struct Trapframe *tf) {
             cprintf("P"); // the page is present
         }
         // (*pte & 0xfff) --> fetch the low 12-bit
-        cprintf("> <%s>\n", convert_12bit_to_binary(*pte & 0xFFF));
+        cprintf("> <%s>\n", convert_12bit_to_binary(*pte & 0xfff));
     }
     return 0;
 }
 
 int
 mon_setperms(int argc, char **argv, struct Trapframe *tf) {
-    if (argc != 1) {
-        cprintf("Usage: setm 0xaddr [0|1 :clear or set] [P|W|U]\n");
+    if (argc != 3) {
+        cprintf("Usage: setm 0x-virtualaddr 0x-perms\n");
         return 0;
     }
+
     pte_t *pte;
     pde_t *pde;
     char *end_ptr = argv[1] + strlen(argv[1]) + 1;
@@ -212,6 +216,29 @@ mon_setperms(int argc, char **argv, struct Trapframe *tf) {
     end_ptr = argv[2] + strlen(argv[2]) + 1;
     uintptr_t perms = (uintptr_t) strtol(argv[2], &end_ptr, 16);
 
+    pte = pgdir_walk(kern_pgdir, (void *) va, 0);
+    if (!pte)
+        panic("Page not mapped.\n");
+
+    cprintf("Virt Addr: 0x%08x\n", va);
+    cprintf("Permissions before setting: ");
+    cprintf("<%s>\n", convert_12bit_to_binary(*pte & 0xfff));
+
+    perms &= 0xfff;   // ensure perms are only lowest 12 bits
+    *pte &= ~0xfff;   // zero out page's permissions
+    *pte |= perms;    // set new permissions
+
+    // @TODO the same contents between pde & pte
+    pde = &kern_pgdir[PDX(va)]; // now do the same for the page directory entry
+    *pde &= ~0xfff;
+    *pde |= perms;
+    /* uintptr_t p = *pde; */
+    /* cprintf("%x\n", p); */
+
+    cprintf(" Permissions after setting: ");
+    cprintf("<%s>\n", convert_12bit_to_binary(*pte & 0xfff));
+
+    return 0;
 }
 
 
