@@ -28,6 +28,7 @@ static struct Command commands[] = {
 	{ "backtrace", "Display backtrace of all stack frames", mon_backtrace },
     { "showmappings", "Display backtrace of all stack frames", mon_showmappings },
     { "setperms", "Display backtrace of all stack frames", mon_setperms },
+    { "dump", "Dump the content of the given region", mon_dump },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -241,6 +242,87 @@ mon_setperms(int argc, char **argv, struct Trapframe *tf) {
     return 0;
 }
 
+void
+dump_virtaddr(uintptr_t current_va, uintptr_t end_va)
+{
+    pte_t *pte;
+    uint32_t size = 0x4;
+    current_va = ROUNDDOWN(current_va, 4);
+    end_va = ROUNDDOWN(end_va, 4);
+
+    while (current_va <= end_va) {
+        cprintf("0x%08x:", current_va);
+        pte = pgdir_walk(kern_pgdir, (const void *)current_va, 0);
+        if (!pte || !(*pte & PTE_P)) {
+            cprintf(" 0x????????\n");
+        } else {
+            cprintf(" 0x%08x\n", *((uint32_t *)current_va));
+        }
+        current_va += size;
+    }
+}
+
+void
+dump_physaddr(physaddr_t start_pa, physaddr_t end_pa) {
+    uintptr_t va;
+    physaddr_t pa;
+    pte_t* pte;
+
+    for (pa = start_pa; pa <= end_pa; pa += 4) {
+        cprintf("0x%08x", pa);
+        if (pa < -KERNBASE)
+            va = pa + KERNBASE;
+        else if (pa >= PADDR(bootstack) && pa < PADDR(bootstack) + KSTKSIZE) {
+            va = pa - PADDR(bootstack) + KSTACKTOP - KSTKSIZE;
+        }
+        else if (pa >= PADDR(pages) && pa < PADDR(pages) + PTSIZE) {
+            va = pa - PADDR(pages) + UPAGES;
+        } else {
+            cprintf(" 0x????????\n");
+            continue;
+        }
+
+        cprintf("-->0x%08x:", va);
+        pte = pgdir_walk(kern_pgdir, (const void *)va, 0);
+        if (!pte || !(*pte & PTE_P))
+            cprintf(" 0x????????\n");
+        else
+            cprintf(" 0x%08x\n", *((uint32_t *)va));
+    }
+}
+
+int
+mon_dump(int argc, char **argv, struct Trapframe *tf) {
+	uintptr_t start_va, end_va;
+	physaddr_t start_pa, end_pa;
+    char *end_ptr = NULL;
+
+	if (argc != 4)
+		goto dump_bad;
+	if (strlen(argv[1]) != 2 || argv[1][0] != '-' || !(argv[1][1] == 'v' || argv[1][1] == 'p'))
+		goto dump_bad;
+	if (argv[1][1] == 'v') {
+        end_ptr = argv[2] + strlen(argv[2]) + 1;
+		start_va = (uintptr_t)strtol(argv[2], &end_ptr, 16);
+        end_ptr = argv[3] + strlen(argv[3]) + 1;
+		end_va = (uintptr_t)strtol(argv[3], &end_ptr, 16);
+
+		dump_virtaddr(start_va, end_va);
+	} else {
+        end_ptr = argv[2] + strlen(argv[2]) + 1;
+		start_pa = (physaddr_t)strtol(argv[2], &end_ptr, 16);
+        end_ptr = argv[3] + strlen(argv[3]) + 1;
+		end_pa = (physaddr_t)strtol(argv[3], &end_ptr, 16);
+
+		dump_physaddr(start_pa, end_pa);
+	}
+
+	return 0;
+dump_bad:
+	cprintf("dump: illegal arguments\n");
+	cprintf("usage: dump -{v,p} start_addr end_addr. -v for virtual address, -p for physical address\n");
+	return 0;
+}
 
 /***** Kernel monitor command interpreter *****/
 
