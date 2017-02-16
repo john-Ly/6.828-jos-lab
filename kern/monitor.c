@@ -31,6 +31,8 @@ static struct Command commands[] = {
     { "dump", "Dump the content of the given region", mon_dump },
 };
 
+unsigned read_eip();
+
 /***** Implementations of basic kernel monitor commands *****/
 
 int
@@ -376,6 +378,9 @@ monitor(struct Trapframe *tf)
 	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
 
+	cprintf("%-5dfat\n", 3);
+	// sjtu lab1:ex-11
+
     /* if (0xffff0000 == ROUNDUP(0xffff0000,PGSIZE) ) */
         /* cprintf("YES\n"); */
 
@@ -397,3 +402,19 @@ monitor(struct Trapframe *tf)
 				break;
 	}
 }
+
+// COPY FROM SJTU
+// return EIP of caller.
+// does not work if inlined.
+// putting at the end of the file seems to prevent inlining.
+unsigned
+read_eip()
+{
+	uint32_t callerpc;
+	__asm __volatile("movl 4(%%ebp), %0" : "=r" (callerpc));
+	return callerpc;
+}
+
+
+
+

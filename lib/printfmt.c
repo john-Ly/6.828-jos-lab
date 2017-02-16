@@ -34,21 +34,48 @@ static const char * const error_string[MAXERROR] =
  * Print a number (base <= 16) in reverse order,
  * using specified putch function and associated pointer putdat.
  */
+//
+// @TODO why print_num() works, it should be printed in reverse order
+
+static int num_length = 0; // indicate the number of layers(actually the how many bits of the number)
+// Return the width for padding (actually padding width + 1)
+static void
+rprintnum(void (*putch)(int, void*), void *putdat,
+	 unsigned long long num, unsigned base, int width, int padc)
+{
+    num_length++;
+	// first recursively print all preceding (more significant) digits
+	if (num >= base) {
+		rprintnum(putch, putdat, num / base, base, width - 1, padc);
+	} else if (padc != '-') {
+		// print any needed pad characters before first digit
+		while (--width > 0)
+			putch(padc, putdat);
+	}
+
+	// then print this (the least significant) digit
+	putch("0123456789abcdef"[num % base], putdat);
+}
+
+
 static void
 printnum(void (*putch)(int, void*), void *putdat,
 	 unsigned long long num, unsigned base, int width, int padc)
 {
-	// first recursively print all preceding (more significant) digits
-	if (num >= base) {
-		printnum(putch, putdat, num / base, base, width - 1, padc);
-	} else {
-		// print any needed pad characters before first digit
-		while (--width > 0)
-			putch(padc | color, putdat);
-	}
+	// if cprintf'parameter includes pattern of the form "%-", padding
+	// space on the right side if neccesary.
+	// you can add helper function if needed.
+	// your code here:
+    rprintnum(putch, putdat, num, base, width, padc);
 
-	// then print this (the least significant) digit
-	putch("0123456789abcdef"[num % base] | color, putdat);
+    int rest_width = width - num_length;
+    // @FIXME why can not get the right number?
+	// putch("0123456789abcdef"[rest_width % base], putdat);
+	if (padc == '-') {
+        for(; rest_width>0; rest_width--)
+		/* while (rest_width-- > 0) // --a && a-- is different */
+			putch(' ', putdat);
+    }
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -262,8 +289,46 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			num = getuint(&ap, lflag);
 			base = 16;
 		number:
-			printnum(putch, putdat, num, base, width, padc);
-			break;
+            printnum(putch, putdat, num, base, width, padc);
+            break;
+
+        case 'n': {
+            // You can consult the %n specifier specification of the C99 printf function
+            // for your reference by typing "man 3 printf" on the console.
+            //
+            // Requirements:
+            // Nothing printed. The argument must be a pointer to a signed char,
+            // where the number of characters written so far is stored.
+            //
+           // hint:  use the following strings to display the error messages
+            //        when the cprintf function ecounters the specific cases,
+            //        for example, when the argument pointer is NULL
+            //        or when the number of characters written so far
+            //        is beyond the range of the integers the signed char type
+            //        can represent.
+
+            const char *null_error = "\nerror! writing through NULL pointer! (%n argument)\n";
+            const char *overflow_error = "\nwarning! The value %n argument pointed to has been overflowed!\n";
+
+            // Your code here
+            // "p" is used for "%s"
+            // Cause: %n here is different (it's used via char *)
+            //
+            // @NOTE well, i can not see any check for this code snippet
+            if ((p = va_arg(ap, void *)) == NULL) { // (void *) is ok
+                printfmt(putch, putdat, "%s", null_error);
+                break;
+            }
+            if( (*(int *)putdat) > 127) {
+                (*((unsigned char *)p)) = (*((unsigned char *)putdat));
+                printfmt(putch, putdat, "%s", overflow_error);
+                break;
+            }
+
+            (*((char *)p)) = (*((char *)putdat));
+
+            break;
+        }
 
 		// escaped '%' character
 		case '%':
