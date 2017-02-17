@@ -26,6 +26,7 @@ static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
 	{ "backtrace", "Display backtrace of all stack frames", mon_backtrace },
+	{ "time", "Display the running time of the program", mon_time },
     { "showmappings", "Display backtrace of all stack frames", mon_showmappings },
     { "setperms", "Display backtrace of all stack frames", mon_setperms },
     { "dump", "Dump the content of the given region", mon_dump },
@@ -58,6 +59,29 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	cprintf("  end    %08x (virt)  %08x (phys)\n", end, end - KERNBASE);
 	cprintf("Kernel executable memory footprint: %dKB\n",
 		ROUNDUP(end - entry, 1024) / 1024);
+	return 0;
+}
+
+int
+mon_time(int argc, char **argv, struct Trapframe *tf)
+{
+	uint64_t tsc_start, tsc_end;
+	int i;
+
+	if (argc == 1) {
+		cprintf("Usage: time [command]\n");
+		return 0;
+	}
+	for (i = 0; i < ARRAY_SIZE(commands); i++) {
+		if (strcmp(argv[1], commands[i].name) == 0) {
+			tsc_start = read_tsc();
+			commands[i].func(argc - 1, argv + 1, tf);
+			tsc_end = read_tsc();
+			cprintf("%s cycles: %llu\n", argv[1], tsc_end - tsc_start);
+			return 0;
+		}
+	}
+	cprintf("Unknown command after time '%s'\n", argv[1]);
 	return 0;
 }
 
