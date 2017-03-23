@@ -18,6 +18,8 @@
  * so that -E_NO_MEM and E_NO_MEM are equivalent.
  */
 
+int color = 0x0700; // console_color
+
 static const char * const error_string[MAXERROR] =
 {
 	[E_UNSPECIFIED]	= "unspecified error",
@@ -32,14 +34,20 @@ static const char * const error_string[MAXERROR] =
  * Print a number (base <= 16) in reverse order,
  * using specified putch function and associated pointer putdat.
  */
+//
+// @TODO why print_num() works, it should be printed in reverse order
+
+static int num_length = 0; // indicate the number of layers(actually the how many bits of the number)
+// Return the width for padding (actually padding width + 1)
 static void
-printnum(void (*putch)(int, void*), void *putdat,
+rprintnum(void (*putch)(int, void*), void *putdat,
 	 unsigned long long num, unsigned base, int width, int padc)
 {
+    num_length++;
 	// first recursively print all preceding (more significant) digits
 	if (num >= base) {
-		printnum(putch, putdat, num / base, base, width - 1, padc);
-	} else {
+		rprintnum(putch, putdat, num / base, base, width - 1, padc);
+	} else if (padc != '-') {
 		// print any needed pad characters before first digit
 		while (--width > 0)
 			putch(padc, putdat);
@@ -47,6 +55,27 @@ printnum(void (*putch)(int, void*), void *putdat,
 
 	// then print this (the least significant) digit
 	putch("0123456789abcdef"[num % base], putdat);
+}
+
+
+static void
+printnum(void (*putch)(int, void*), void *putdat,
+	 unsigned long long num, unsigned base, int width, int padc)
+{
+	// if cprintf'parameter includes pattern of the form "%-", padding
+	// space on the right side if neccesary.
+	// you can add helper function if needed.
+	// your code here:
+    rprintnum(putch, putdat, num, base, width, padc);
+
+    int rest_width = width - num_length;
+    // @FIXME why can not get the right number?
+	// putch("0123456789abcdef"[rest_width % base], putdat);
+	if (padc == '-') {
+        for(; rest_width>0; rest_width--)
+		/* while (rest_width-- > 0) // --a && a-- is different */
+			putch(' ', putdat);
+    }
 }
 
 // Get an unsigned int of various possible sizes from a varargs list,
@@ -79,20 +108,55 @@ getint(va_list *ap, int lflag)
 // Main function to format and print a string.
 void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
 
+static int ansi_to_cga_color[] = { // console_color
+    0, // black
+    4, // red
+    2, // green
+    7, // yellow
+    1, // blue
+    5, // magenta
+    3, // cyan
+    7, // white
+};
+
 void
 vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 {
 	register const char *p;
 	register int ch, err;
 	unsigned long long num;
-	int base, lflag, width, precision, altflag;
+	int base, lflag, width, precision, altflag, color_num;
 	char padc;
 
 	while (1) {
 		while ((ch = *(unsigned char *) fmt++) != '%') {
 			if (ch == '\0')
 				return;
-			putch(ch, putdat);
+            else if (ch == '[') {  // ANSI escape sequence
+                ch = *(unsigned char *) fmt++;
+                while (ch != 'm') {
+                    color_num = 0;
+                    while (ch >= '0' && ch <= '9') {
+                        color_num = color_num * 10 + ch - '0';
+                        ch = *(unsigned char *) fmt++;
+                    }
+                    if (color_num >= 30 && color_num <= 37) {
+                        // foreground color
+                        color_num -= 30;
+                        color &= 0xF0FF;
+                        color |= (ansi_to_cga_color[color_num] << 8);
+                    } else if (color_num >= 40 && color_num <= 47) {
+                        // background color
+                        color_num -= 40;
+                        color &= 0xFFF;
+                        color |= (ansi_to_cga_color[color_num] << 12);
+                    }
+                    if (ch == ';') {
+                        ch = *(unsigned char *) fmt++;
+                    }
+                }
+            } else
+                putch(ch | color, putdat);
 		}
 
 		// Process a %-escape sequence
@@ -157,7 +221,7 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// character
 		case 'c':
-			putch(va_arg(ap, int), putdat);
+			putch(va_arg(ap, int) | color, putdat);
 			break;
 
 		// error message
@@ -177,21 +241,21 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 				p = "(null)";
 			if (width > 0 && padc != '-')
 				for (width -= strnlen(p, precision); width > 0; width--)
-					putch(padc, putdat);
+					putch(padc | color, putdat);
 			for (; (ch = *p++) != '\0' && (precision < 0 || --precision >= 0); width--)
 				if (altflag && (ch < ' ' || ch > '~'))
-					putch('?', putdat);
+					putch('?' | color, putdat);
 				else
-					putch(ch, putdat);
+					putch(ch | color, putdat);
 			for (; width > 0; width--)
-				putch(' ', putdat);
+				putch(' ' | color, putdat);
 			break;
 
 		// (signed) decimal
 		case 'd':
 			num = getint(&ap, lflag);
 			if ((long long) num < 0) {
-				putch('-', putdat);
+				putch('-' | color, putdat);
 				num = -(long long) num;
 			}
 			base = 10;
@@ -206,10 +270,10 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// (unsigned) octal
 		case 'o':
 			// Replace this with your code.
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
-			break;
+			// putch('0', putdat); -- should not be here :( weird
+			num = getuint(&ap, lflag);
+			base = 8;
+			goto number;
 
 		// pointer
 		case 'p':
@@ -225,17 +289,55 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			num = getuint(&ap, lflag);
 			base = 16;
 		number:
-			printnum(putch, putdat, num, base, width, padc);
-			break;
+            printnum(putch, putdat, num, base, width, padc);
+            break;
+
+        case 'n': {
+            // You can consult the %n specifier specification of the C99 printf function
+            // for your reference by typing "man 3 printf" on the console.
+            //
+            // Requirements:
+            // Nothing printed. The argument must be a pointer to a signed char,
+            // where the number of characters written so far is stored.
+            //
+           // hint:  use the following strings to display the error messages
+            //        when the cprintf function ecounters the specific cases,
+            //        for example, when the argument pointer is NULL
+            //        or when the number of characters written so far
+            //        is beyond the range of the integers the signed char type
+            //        can represent.
+
+            const char *null_error = "\nerror! writing through NULL pointer! (%n argument)\n";
+            const char *overflow_error = "\nwarning! The value %n argument pointed to has been overflowed!\n";
+
+            // Your code here
+            // "p" is used for "%s"
+            // Cause: %n here is different (it's used via char *)
+            //
+            // @NOTE well, i can not see any check for this code snippet
+            if ((p = va_arg(ap, void *)) == NULL) { // (void *) is ok
+                printfmt(putch, putdat, "%s", null_error);
+                break;
+            }
+            if( (*(int *)putdat) > 127) {
+                (*((unsigned char *)p)) = (*((unsigned char *)putdat));
+                printfmt(putch, putdat, "%s", overflow_error);
+                break;
+            }
+
+            (*((char *)p)) = (*((char *)putdat));
+
+            break;
+        }
 
 		// escaped '%' character
 		case '%':
-			putch(ch, putdat);
+			putch(ch | color, putdat);
 			break;
 
 		// unrecognized escape sequence - just print it literally
 		default:
-			putch('%', putdat);
+			putch('%' | color, putdat);
 			for (fmt--; fmt[-1] != '%'; fmt--)
 				/* do nothing */;
 			break;
@@ -296,5 +398,3 @@ snprintf(char *buf, int n, const char *fmt, ...)
 
 	return rc;
 }
-
-
