@@ -182,6 +182,8 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
+	envs = (struct Env *) boot_alloc(NENV * sizeof(struct Env));
+    memset(pages, 0, NENV * sizeof(struct Env));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -194,7 +196,7 @@ mem_init(void)
 	check_page_free_list(1);
 	check_page_alloc();
 	check_page();
-	check_n_pages();
+//	check_n_pages();
 
 	//////////////////////////////////////////////////////////////////////
 	// Now we set up virtual memory
@@ -218,6 +220,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
+	boot_map_region(kern_pgdir, UENVS, PTSIZE, PADDR(envs), PTE_U | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -388,6 +391,7 @@ page_alloc(int alloc_flags)
 // Returns NULL if n <= 0
 //
 // Hint: use page2kva and memset
+/*
 struct PageInfo *
 page_alloc_npages(int alloc_flags, int n)
 {
@@ -457,6 +461,7 @@ page_alloc_npages(int alloc_flags, int n)
 	return prev_find;
 }
 
+*/
 
 //
 // Return a page to the free list.
