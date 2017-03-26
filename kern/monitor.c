@@ -32,11 +32,62 @@ static struct Command commands[] = {
     { "showmappings", "Display backtrace of all stack frames", mon_showmappings },
     { "setperms", "Display backtrace of all stack frames", mon_setperms },
     { "dump", "Dump the content of the given region", mon_dump },
+    { "continue", "Continue execution at the breakpoint", mon_continue },
+    { "singlestep", "Break at the next instruction", mon_singlestep },
 };
 
 unsigned read_eip();
 
 /***** Implementations of basic kernel monitor commands *****/
+
+void
+my_printer(struct Trapframe *tf)
+{
+	cprintf("TRAP frame at %p\n", tf);
+	cprintf("  trap 0x%08x\n", tf->tf_trapno);
+	// If this trap was a page fault that just happened
+	// (so %cr2 is meaningful), print the faulting linear address.
+	cprintf("  eip  0x%08x\n", tf->tf_eip);
+	cprintf("  cs   0x----%04x\n", tf->tf_cs);
+	cprintf("  flag 0x%08x\n", tf->tf_eflags);
+}
+
+int
+mon_continue(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 1) {
+        cprintf("invalid number of parameters\n");
+        return 0;
+    }
+    if (tf == NULL) {
+        cprintf("continue error.\n");
+        return 0;
+    }
+    tf->tf_eflags &= ~FL_TF;
+    /* my_printer(tf); */
+    /* env_run(curenv); */
+    /* panic("continue error, env ret"); */
+
+	return -1;
+}
+
+
+int
+mon_singlestep(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 1) {
+        cprintf("invalid number of parameters\n");
+        return 0;
+    }
+    if (tf == NULL) {
+        cprintf("singlestep error.\n");
+        return 0;
+    }
+    tf->tf_eflags |= FL_TF;
+    /* my_printer(tf); */
+    /* env_run(curenv); */
+    /* panic("singlestep error, env ret"); */
+
+	return -1;
+}
 
 int
 mon_help(int argc, char **argv, struct Trapframe *tf)
@@ -71,7 +122,7 @@ mon_time(int argc, char **argv, struct Trapframe *tf)
 	int i;
 
 	if (argc == 1) {
-		cprintf("Usage: time [command]\n");
+		cprintf("Usage: time <command>\n");
 		return 0;
 	}
 	for (i = 0; i < ARRAY_SIZE(commands); i++) {
@@ -494,12 +545,13 @@ monitor(struct Trapframe *tf)
 
 	if (tf != NULL)
 		print_trapframe(tf);
+
     /* char *str = "hellp"; */
     /* char *p = str; */
     /* cprintf("%s%n\n", str, p); */
     /* cprintf("%d\n", *p); */
 
-	cprintf("%-5dfat\n", 3);
+	// cprintf("%-5dfat\n", 3);  error
 	// sjtu lab1:ex-11
 
     /* if (0xffff0000 == ROUNDUP(0xffff0000,PGSIZE) ) */

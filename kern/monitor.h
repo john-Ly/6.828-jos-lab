@@ -22,5 +22,8 @@ int mon_setperms(int argc, char **argv, struct Trapframe *tf);
 void dump_virtaddr(uintptr_t start_va, uintptr_t end_va);
 void dump_physaddr(physaddr_t start_pa, physaddr_t end_pa);
 int mon_dump(int argc, char **argv, struct Trapframe *tf);
+int mon_continue(int argc, char **argv, struct Trapframe *tf);
+int mon_singlestep(int argc, char **argv, struct Trapframe *tf);
+void my_printer(struct Trapframe *tf);
 
 #endif	// !JOS_KERN_MONITOR_H

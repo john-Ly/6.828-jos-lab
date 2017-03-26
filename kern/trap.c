@@ -49,7 +49,7 @@ void t_mchk();   // 18
 void t_simderr();// 19
 
 void t_syscall();// 48
-/* void t_default(); */
+void t_default();
 
 /*
 void irq_timer();
@@ -187,7 +187,7 @@ print_trapframe(struct Trapframe *tf)
 	// W/R=a write/read caused the fault
 	// PR=a protection violation caused the fault (NP=page not present).
 	if (tf->tf_trapno == T_PGFLT)
-		cprintf(" [%s, %s, %s]\n",
+		cprintf(" <%s, %s, %s>\n",
 			tf->tf_err & 4 ? "user" : "kernel",
 			tf->tf_err & 2 ? "write" : "read",
 			tf->tf_err & 1 ? "protection" : "not-present");
@@ -220,16 +220,24 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-
-
-	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
-	if (tf->tf_cs == GD_KT)
-		panic("unhandled trap in kernel");
-	else {
-		env_destroy(curenv);
-		return;
-	}
+    switch(tf->tf_trapno) {
+        case (T_PGFLT):
+            page_fault_handler(tf);
+            break;
+        case (T_BRKPT):
+        case (T_DEBUG):
+            monitor(tf);
+            break;
+        default:
+            // Unexpected trap: The user process or the kernel has a bug.
+            print_trapframe(tf);
+            if (tf->tf_cs == GD_KT)
+                panic("unhandled trap in kernel");
+            else {
+                env_destroy(curenv);
+                return;
+            }
+    }
 }
 
 void
@@ -246,6 +254,7 @@ trap(struct Trapframe *tf)
 
 	cprintf("Incoming TRAP frame at %p\n", tf);
 
+    // GD_UT: user text
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
 		assert(curenv);
@@ -276,6 +285,10 @@ page_fault_handler(struct Trapframe *tf)
 {
 	uint32_t fault_va;
 
+    // CR2: Contains a value called Page Fault Linear Address (PFLA).
+    // When a page fault occurs, the address the program attempted to access is stored in the CR2 register.
+    // John: from wiki- https://www.wikiwand.com/en/Control_register
+    //
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
 
@@ -287,7 +300,7 @@ page_fault_handler(struct Trapframe *tf)
 	// the page fault happened in user mode.
 
 	// Destroy the environment that caused the fault.
-	cprintf("[%08x] user fault va %08x ip %08x\n",
+	cprintf("<%08x> user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
 	print_trapframe(tf);
 	env_destroy(curenv);
