@@ -25,35 +25,71 @@ struct Pseudodesc idt_pd = {
 	sizeof(idt) - 1, (uint32_t) idt
 };
 
+// Dummy function declarations to be used as entry points in
+// trapentry.S
+void t_divide(); // 0
+void t_debug();	 // 1
+void t_nmi();    // 2
+void t_brkpt();  // 3
+void t_oflow();  // 4
+void t_bound();  // 5
+void t_illop();  // 6
+void t_device(); // 7
+void t_dblflt(); // 8
+//void t_coproc();// 9 reserved
+void t_tss();    // 10
+void t_segnp();  // 11
+void t_stack();  // 12
+void t_gpflt();  // 13
+void t_pgflt();  // 14
+//void t_res();  // 15 reserved
+void t_fperr();  // 16
+void t_align();  // 17
+void t_mchk();   // 18
+void t_simderr();// 19
+
+void t_syscall();// 48
+/* void t_default(); */
+
+/*
+void irq_timer();
+void irq_kbd();
+void irq_serial();
+void irq_spurious();
+void irq_e1000();
+void irq_ide();
+void irq_error();
+*/
+
 
 static const char *trapname(int trapno)
 {
 	static const char * const excnames[] = {
-		"Divide error",
-		"Debug",
-		"Non-Maskable Interrupt",
-		"Breakpoint",
-		"Overflow",
-		"BOUND Range Exceeded",
-		"Invalid Opcode",
-		"Device Not Available",
-		"Double Fault",
-		"Coprocessor Segment Overrun",
-		"Invalid TSS",
-		"Segment Not Present",
-		"Stack Fault",
-		"General Protection",
-		"Page Fault",
-		"(unknown trap)",
-		"x87 FPU Floating-Point Error",
-		"Alignment Check",
-		"Machine-Check",
-		"SIMD Floating-Point Exception"
+		"Divide error",                 // 0
+		"Debug",                        // 1
+		"Non-Maskable Interrupt",       // 2
+		"Breakpoint",                   // 3
+		"Overflow",                     // 4
+		"BOUND Range Exceeded",         // 5
+		"Invalid Opcode",               // 6
+		"Device Not Available",         // 7
+		"Double Fault",                 // 8
+		"Coprocessor Segment Overrun",  // ??
+		"Invalid TSS",                  // 10
+		"Segment Not Present",          // 11
+		"Stack Fault",                  // 12
+		"General Protection",           // 13
+		"Page Fault",                   // 14
+		"(unknown trap)",               // ??
+		"x87 FPU Floating-Point Error", // ??
+		"Alignment Check",              // 17
+		"Machine-Check",                // 18
+		"SIMD Floating-Point Exception" // 19
 	};
 
-	if (trapno < ARRAY_SIZE(excnames))
+	if (trapno < ARRAY_SIZE(excnames))   // define in inc/types.h
 		return excnames[trapno];
-	if (trapno == T_SYSCALL)
+	if (trapno == T_SYSCALL)            // 48
 		return "System call";
 	return "(unknown trap)";
 }
@@ -63,10 +99,51 @@ void
 trap_init(void)
 {
 	extern struct Segdesc gdt[];
+    // John: using iteration, instead SETGATE()
+    // ref: PKU
 
 	// LAB 3: Your code here.
+    SETGATE(idt[T_DIVIDE], 0, GD_KT, t_divide, 0);
+    SETGATE(idt[T_DEBUG], 0, GD_KT, t_debug, 0);
+    SETGATE(idt[T_NMI], 0, GD_KT, t_nmi, 0);
 
-	// Per-CPU setup 
+    // Debuggers typically use breakpoints as a way of displaying registers, variables, etc., at crucial points in a task.
+    SETGATE(idt[T_BRKPT], 0, GD_KT, t_brkpt, 3);
+
+    SETGATE(idt[T_OFLOW], 0, GD_KT, t_oflow, 0);
+    SETGATE(idt[T_BOUND], 0, GD_KT, t_bound, 0);
+    SETGATE(idt[T_ILLOP], 0, GD_KT, t_illop, 0);
+    SETGATE(idt[T_DEVICE], 0, GD_KT, t_device, 0);
+    SETGATE(idt[T_DBLFLT], 0, GD_KT, t_dblflt, 0);
+    SETGATE(idt[T_TSS], 0, GD_KT, t_tss, 0);
+    SETGATE(idt[T_SEGNP], 0, GD_KT, t_segnp, 0);
+    SETGATE(idt[T_STACK], 0, GD_KT, t_stack, 0);
+    SETGATE(idt[T_GPFLT], 0, GD_KT, t_gpflt, 0);
+    SETGATE(idt[T_PGFLT], 0, GD_KT, t_pgflt, 0);
+    SETGATE(idt[T_FPERR], 0, GD_KT, t_fperr, 0);
+    SETGATE(idt[T_ALIGN], 0, GD_KT, t_align, 0);
+    SETGATE(idt[T_MCHK], 0, GD_KT, t_mchk, 0);
+    SETGATE(idt[T_SIMDERR], 0, GD_KT, t_simderr, 0);
+
+    /*  using globl extern, make grade has something wrong in test 2
+    extern uint32_t idt_table[];
+    int i;
+    for(i=0; i<19; i++) {
+        switch(i) {
+            case T_BRKPT:
+                SETGATE(idt[i], 0, GD_KT, idt_table[i], 3);
+                break;
+            default:
+                SETGATE(idt[i], 0, GD_KT, idt_table[i], 0);
+                break;
+        }
+    }
+    */
+
+    // system-call >> 48
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, t_syscall, 3);
+
+	// Per-CPU setup
 	trap_init_percpu();
 }
 
@@ -143,6 +220,7 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
