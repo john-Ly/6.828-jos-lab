@@ -49,7 +49,7 @@ void t_mchk();   // 18
 void t_simderr();// 19
 
 void t_syscall();// 48
-void t_default();
+// void t_default();
 
 /*
 void irq_timer();
@@ -215,6 +215,9 @@ print_regs(struct PushRegs *regs)
 	cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
 
+// John:
+// each handler need to have enety body to handle exception & interruptions
+// In lab3, Jos just destroy the env(process), then back to kernel envrionment -- This is NOT actual handler
 static void
 trap_dispatch(struct Trapframe *tf)
 {
@@ -228,6 +231,16 @@ trap_dispatch(struct Trapframe *tf)
         case (T_DEBUG):
             monitor(tf);
             break;
+				case (T_SYSCALL):
+						tf->tf_regs.reg_eax =  syscall(
+								tf->tf_regs.reg_eax,
+								tf->tf_regs.reg_edx,
+								tf->tf_regs.reg_ecx,
+								tf->tf_regs.reg_ebx,
+								tf->tf_regs.reg_edi,
+								tf->tf_regs.reg_esi
+						);
+						break;
         default:
             // Unexpected trap: The user process or the kernel has a bug.
             print_trapframe(tf);
@@ -305,4 +318,3 @@ page_fault_handler(struct Trapframe *tf)
 	print_trapframe(tf);
 	env_destroy(curenv);
 }
-

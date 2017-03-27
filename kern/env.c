@@ -400,13 +400,16 @@ load_icode(struct Env *e, uint8_t *binary)
 		panic("load_icode: no elf entry present\n");
 
     // When we switch to the user environment we need to start executing
-	// at the eip pointed to by the e_entry field of the elf_header
+		// at the eip pointed to by the e_entry field of the elf_header
     // John: trapframe represents for the *thread*
     // & make sure env_pop_tf() runs correctly
-	e->env_tf.tf_eip = elf_header->e_entry;
+		e->env_tf.tf_eip = elf_header->e_entry;
+	  // Because we do not yet have a filesystem, we will set up the kernel to load a
+		// static binary image that is embedded within the kernel itself.
+		// JOS embeds this binary in the kernel as a ELF executable image.
 
     // @see in inc/x86.h
-    // CR3 points at the page directory.
+    // CR3 points at the page directory.(switch to new address space)
     lcr3(PADDR(e->env_pgdir));
 
     int i;
@@ -569,7 +572,7 @@ env_run(struct Env *e)
     curenv = e;
     curenv->env_status = ENV_RUNNING;
 	curenv->env_runs++;
-	lcr3(PADDR(curenv->env_pgdir));
+	lcr3(PADDR(curenv->env_pgdir)); // switch user address space
 
     env_pop_tf(&curenv->env_tf); // restore into curenv->env_tf()
     // panic("env_run not yet implemented");
