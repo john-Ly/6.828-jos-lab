@@ -725,9 +725,45 @@ static uintptr_t user_mem_check_addr;
 // and -E_FAULT otherwise.
 //
 int
-user_mem_check(struct Env *env, const void *va, size_t len, int perm)
-{
+user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
 	// LAB 3: Your code here.
+/*
+	int ret;
+	void *round_down_start = (void *) ROUNDDOWN((uint32_t) va, PGSIZE);
+	void *round_up_end = (void *) ROUNDUP((uint32_t) va + len, PGSIZE);
+
+	if ((uint32_t) round_up_end > ULIM)
+        return E_FAULT;
+		// panic (" the address is above ULIM\n");
+
+	pte_t *pte;
+	while (round_down_start < round_up_end) {
+		pte = pgdir_walk(env->env_pgdir, va, false);
+        round_down_start += PGSIZE;
+	}
+
+	user_mem_check_addr =
+*/
+    // John: 6.828(git_repo) is an excellent c programmer.
+	uint32_t start = (uint32_t) va;
+	uint32_t current = ROUNDDOWN(start, PGSIZE);
+	uint32_t end = start + len;
+	pte_t *test_page;
+
+	while (current < end) {
+		test_page = pgdir_walk(env->env_pgdir, (void *) current, false);
+		if (!test_page || current > ULIM || (((uint32_t) *test_page & perm) != perm)) {
+			if (current == ROUNDDOWN(start, PGSIZE))
+				user_mem_check_addr = (uintptr_t) va;
+			else
+				user_mem_check_addr = (uintptr_t) current;
+			return -E_FAULT;
+		}
+		current += PGSIZE;
+	}
+
+    // John: using 'goto' to make the code clean & consine
+    // ref: https://github.com/jasonleaster/MIT_JOS_2014/blob/lab3/kern/pmap.c
 
 	return 0;
 }
@@ -743,7 +779,7 @@ void
 user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 {
 	if (user_mem_check(env, va, len, perm | PTE_U) < 0) {
-		cprintf("[%08x] user_mem_check assertion failure for "
+		cprintf("<%08x> user_mem_check assertion failure for "
 			"va %08x\n", env->env_id, user_mem_check_addr);
 		env_destroy(env);	// may not return
 	}
