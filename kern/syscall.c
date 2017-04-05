@@ -22,7 +22,7 @@ sys_cputs(const char *s, size_t len)
 	// Destroy the environment if not.
 
 	// LAB 3: Your code here.
-
+	user_mem_assert(curenv, s, len, 0);
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
 }
@@ -56,9 +56,9 @@ sys_env_destroy(envid_t envid)
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
 	if (e == curenv)
-		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
+		cprintf("<%08x> exiting gracefully\n", curenv->env_id);
 	else
-		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
+		cprintf("<%08x> destroying %08x\n", curenv->env_id, e->env_id);
 	env_destroy(e);
 	return 0;
 }
@@ -271,11 +271,19 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// Return any appropriate return value.
 	// LAB 3: Your code here.
 
-	panic("syscall not implemented");
+	/* panic("syscall not implemented"); */
 
 	switch (syscallno) {
+        case (SYS_cputs):
+            sys_cputs((const char *)a1, (size_t)a2);
+            return 0;
+		case (SYS_cgetc):
+			return sys_cgetc();
+		case (SYS_getenvid):
+			return sys_getenvid();
+		case (SYS_env_destroy):
+			return sys_env_destroy((envid_t)a1);
 	default:
 		return -E_INVAL;
 	}
 }
-

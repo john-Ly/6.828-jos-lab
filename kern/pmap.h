@@ -71,7 +71,7 @@ void	user_mem_assert(struct Env *env, const void *va, size_t len, int perm);
 static inline physaddr_t
 page2pa(struct PageInfo *pp)
 {
-	return (pp - pages) << PGSHIFT;
+	return (pp - pages) << PGSHIFT;   // (pp - pages) will return the number of items
 }
 
 static inline struct PageInfo*

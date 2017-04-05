@@ -30,35 +30,71 @@ struct Pseudodesc idt_pd = {
 	sizeof(idt) - 1, (uint32_t) idt
 };
 
+// Dummy function declarations to be used as entry points in
+// trapentry.S
+void t_divide(); // 0
+void t_debug();	 // 1
+void t_nmi();    // 2
+void t_brkpt();  // 3
+void t_oflow();  // 4
+void t_bound();  // 5
+void t_illop();  // 6
+void t_device(); // 7
+void t_dblflt(); // 8
+//void t_coproc();// 9 reserved
+void t_tss();    // 10
+void t_segnp();  // 11
+void t_stack();  // 12
+void t_gpflt();  // 13
+void t_pgflt();  // 14
+//void t_res();  // 15 reserved
+void t_fperr();  // 16
+void t_align();  // 17
+void t_mchk();   // 18
+void t_simderr();// 19
+
+void t_syscall();// 48
+// void t_default();
+
+/*
+void irq_timer();
+void irq_kbd();
+void irq_serial();
+void irq_spurious();
+void irq_e1000();
+void irq_ide();
+void irq_error();
+*/
+
 
 static const char *trapname(int trapno)
 {
 	static const char * const excnames[] = {
-		"Divide error",
-		"Debug",
-		"Non-Maskable Interrupt",
-		"Breakpoint",
-		"Overflow",
-		"BOUND Range Exceeded",
-		"Invalid Opcode",
-		"Device Not Available",
-		"Double Fault",
-		"Coprocessor Segment Overrun",
-		"Invalid TSS",
-		"Segment Not Present",
-		"Stack Fault",
-		"General Protection",
-		"Page Fault",
-		"(unknown trap)",
-		"x87 FPU Floating-Point Error",
-		"Alignment Check",
-		"Machine-Check",
-		"SIMD Floating-Point Exception"
+		"Divide error",                 // 0
+		"Debug",                        // 1
+		"Non-Maskable Interrupt",       // 2
+		"Breakpoint",                   // 3
+		"Overflow",                     // 4
+		"BOUND Range Exceeded",         // 5
+		"Invalid Opcode",               // 6
+		"Device Not Available",         // 7
+		"Double Fault",                 // 8
+		"Coprocessor Segment Overrun",  // ??
+		"Invalid TSS",                  // 10
+		"Segment Not Present",          // 11
+		"Stack Fault",                  // 12
+		"General Protection",           // 13
+		"Page Fault",                   // 14
+		"(unknown trap)",               // ??
+		"x87 FPU Floating-Point Error", // ??
+		"Alignment Check",              // 17
+		"Machine-Check",                // 18
+		"SIMD Floating-Point Exception" // 19
 	};
 
-	if (trapno < ARRAY_SIZE(excnames))
+	if (trapno < ARRAY_SIZE(excnames))   // define in inc/types.h
 		return excnames[trapno];
-	if (trapno == T_SYSCALL)
+	if (trapno == T_SYSCALL)            // 48
 		return "System call";
 	if (trapno >= IRQ_OFFSET && trapno < IRQ_OFFSET + 16)
 		return "Hardware Interrupt";
@@ -70,10 +106,51 @@ void
 trap_init(void)
 {
 	extern struct Segdesc gdt[];
+    // John: using iteration, instead SETGATE()
+    // ref: PKU
 
 	// LAB 3: Your code here.
+    SETGATE(idt[T_DIVIDE], 0, GD_KT, t_divide, 0);
+    SETGATE(idt[T_DEBUG], 0, GD_KT, t_debug, 0);
+    SETGATE(idt[T_NMI], 0, GD_KT, t_nmi, 0);
 
-	// Per-CPU setup 
+    // Debuggers typically use breakpoints as a way of displaying registers, variables, etc., at crucial points in a task.
+    SETGATE(idt[T_BRKPT], 0, GD_KT, t_brkpt, 3);
+
+    SETGATE(idt[T_OFLOW], 0, GD_KT, t_oflow, 0);
+    SETGATE(idt[T_BOUND], 0, GD_KT, t_bound, 0);
+    SETGATE(idt[T_ILLOP], 0, GD_KT, t_illop, 0);
+    SETGATE(idt[T_DEVICE], 0, GD_KT, t_device, 0);
+    SETGATE(idt[T_DBLFLT], 0, GD_KT, t_dblflt, 0);
+    SETGATE(idt[T_TSS], 0, GD_KT, t_tss, 0);
+    SETGATE(idt[T_SEGNP], 0, GD_KT, t_segnp, 0);
+    SETGATE(idt[T_STACK], 0, GD_KT, t_stack, 0);
+    SETGATE(idt[T_GPFLT], 0, GD_KT, t_gpflt, 0);
+    SETGATE(idt[T_PGFLT], 0, GD_KT, t_pgflt, 0);
+    SETGATE(idt[T_FPERR], 0, GD_KT, t_fperr, 0);
+    SETGATE(idt[T_ALIGN], 0, GD_KT, t_align, 0);
+    SETGATE(idt[T_MCHK], 0, GD_KT, t_mchk, 0);
+    SETGATE(idt[T_SIMDERR], 0, GD_KT, t_simderr, 0);
+
+    /*  using globl extern, make grade has something wrong in test 2
+    extern uint32_t idt_table[];
+    int i;
+    for(i=0; i<19; i++) {
+        switch(i) {
+            case T_BRKPT:
+                SETGATE(idt[i], 0, GD_KT, idt_table[i], 3);
+                break;
+            default:
+                SETGATE(idt[i], 0, GD_KT, idt_table[i], 0);
+                break;
+        }
+    }
+    */
+
+    // system-call >> 48
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, t_syscall, 3);
+
+	// Per-CPU setup
 	trap_init_percpu();
 }
 
@@ -141,7 +218,7 @@ print_trapframe(struct Trapframe *tf)
 	// W/R=a write/read caused the fault
 	// PR=a protection violation caused the fault (NP=page not present).
 	if (tf->tf_trapno == T_PGFLT)
-		cprintf(" [%s, %s, %s]\n",
+		cprintf(" <%s, %s, %s>\n",
 			tf->tf_err & 4 ? "user" : "kernel",
 			tf->tf_err & 2 ? "write" : "read",
 			tf->tf_err & 1 ? "protection" : "not-present");
@@ -169,11 +246,32 @@ print_regs(struct PushRegs *regs)
 	cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
 
+// John:
+// each handler need to have enety body to handle exception & interruptions
+// In lab3, Jos just destroy the env(process), then back to kernel envrionment -- This is NOT actual handler
 static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
+    switch(tf->tf_trapno) {
+        case (T_PGFLT):
+            page_fault_handler(tf);
+            break;
+        case (T_BRKPT):
+        case (T_DEBUG):
+            monitor(tf);
+            break;
+        case (T_SYSCALL):
+            tf->tf_regs.reg_eax =  syscall(
+                    tf->tf_regs.reg_eax,
+                    tf->tf_regs.reg_edx,
+                    tf->tf_regs.reg_ecx,
+                    tf->tf_regs.reg_ebx,
+                    tf->tf_regs.reg_edi,
+                    tf->tf_regs.reg_esi);
+            break;
+    }
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -219,6 +317,9 @@ trap(struct Trapframe *tf)
 	// the interrupt path.
 	assert(!(read_eflags() & FL_IF));
 
+	/* cprintf("Incoming TRAP frame at %p\n", tf); */
+
+    // GD_UT: user text
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
 		// Acquire the big kernel lock before doing any
@@ -263,12 +364,20 @@ page_fault_handler(struct Trapframe *tf)
 {
 	uint32_t fault_va;
 
+    // CR2: Contains a value called Page Fault Linear Address (PFLA).
+    // When a page fault occurs, the address the program attempted to access is stored in the CR2 register.
+    // John: from wiki- https://www.wikiwand.com/en/Control_register
+    //
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
 
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if ((tf->tf_cs & 1) == 0) {
+		print_trapframe(tf);
+		panic("page_fault_handler: page fault in kernel, faulting addr %08x", fault_va);
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
@@ -304,9 +413,8 @@ page_fault_handler(struct Trapframe *tf)
 	// LAB 4: Your code here.
 
 	// Destroy the environment that caused the fault.
-	cprintf("[%08x] user fault va %08x ip %08x\n",
+	cprintf("<%08x> user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
 	print_trapframe(tf);
 	env_destroy(curenv);
 }
-

@@ -43,6 +43,12 @@ enum EnvType {
 	ENV_TYPE_USER = 0,
 };
 
+/*
+Like a Unix process, a JOS environment couples the concepts of "thread" and "address space".
+The thread is defined primarily by the saved registers (the env_tf field), and the address space is defined by the page directory and page tables pointed to by env_pgdir.
+To run an environment, the kernel must set up the CPU with both the saved registers and the appropriate address space.
+*/
+
 struct Env {
 	struct Trapframe env_tf;	// Saved registers
 	struct Env *env_link;		// Next free Env
