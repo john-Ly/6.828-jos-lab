@@ -781,6 +781,7 @@ mmio_map_region(physaddr_t pa, size_t size)
         panic("mmio_map_region: requested size to map went over MMIOLIM");
 
     boot_map_region(kern_pgdir, base, round_up_size, pa, PTE_PCD | PTE_PWT | PTE_W);
+		// PTE_PCD: page cache disabled, PTE_PWT: page write through.
 
     uintptr_t mapped_base = base;
     base += round_up_size;

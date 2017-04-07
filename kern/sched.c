@@ -38,6 +38,9 @@ sched_yield(void)
     bool first = true;
 
     // 'first' usage is quite tricky @NOTE
+		// ref:file:///home/john/workspace/op_sys/ref/6.828-lab4-a-writeup.html#
+		// start the next to make sure the average distribution.
+		// There are two methods to dispatch
     for(; i != start || first; i = (i+1)%NENV, first = false) {
         if(envs[i].env_status == ENV_RUNNABLE) {
             env_run(&envs[i]);
@@ -101,4 +104,3 @@ sched_halt(void)
 		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
 }
-

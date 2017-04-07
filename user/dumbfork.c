@@ -40,7 +40,7 @@ duppage(envid_t dstenv, void *addr)
 envid_t
 dumbfork(void)
 {
-	envid_t envid;
+	envid_t envid = 0;
 	uint8_t *addr;
 	int r;
 	extern unsigned char end[];
@@ -51,8 +51,9 @@ dumbfork(void)
 	// except that in the child, this "fake" call to sys_exofork()
 	// will return 0 instead of the envid of the child.
 	envid = sys_exofork();
-	if (envid < 0)
+	if (envid < 0) {
 		panic("sys_exofork: %e", envid);
+	}
 	if (envid == 0) {
 		// We're the child.
 		// The copied value of the global variable 'thisenv'
@@ -77,4 +78,3 @@ dumbfork(void)
 
 	return envid;
 }
-

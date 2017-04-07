@@ -343,6 +343,12 @@ trap(struct Trapframe *tf)
 		// Copy trap frame (which is currently on the stack)
 		// into 'curenv->env_tf', so that running the environment
 		// will restart at the trap point.
+
+		// now, the code is running in kernel mode, but curenv is not 
+		// kernel, curenv is the env just before the trap occured.
+		// so, the trap fram copy is needed, for saving the trapped
+		// env's registers.
+		// tf is on the kernel stack.
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;

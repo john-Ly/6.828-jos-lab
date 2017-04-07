@@ -51,6 +51,13 @@ i386_init(void)
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
+	//
+	// John: when lock() happened, when to unlock() ?
+	// only one BP, why using lock??
+	// OK: using BIg Kernel Lock to make sure the *Only One CPU can
+	//     modify the kernel status.
+	//     So, consider this model, just ignore the CPUS, user mode envs.
+	//     focus on the right lock
     lock_kernel();
 
 	// Starting non-boot CPUs
