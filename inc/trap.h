@@ -91,6 +91,23 @@ struct UTrapframe {
 	uintptr_t utf_esp;
 } __attribute__((packed));
 
+/*
+ *                     <-- UXSTACKTOP
+ * trap-time esp
+ * trap-time eflags
+ * trap-time eip
+ * trap-time eax       start of struct PushRegs
+ * trap-time ecx
+ * trap-time edx
+ * trap-time ebx
+ * trap-time esp
+ * trap-time ebp
+ * trap-time esi
+ * trap-time edi       end of struct PushRegs
+ * tf_err (error code)
+ * fault_va            <-- %esp when handler is run
+ */
+
 #endif /* !__ASSEMBLER__ */
 
 #endif /* !JOS_INC_TRAP_H */

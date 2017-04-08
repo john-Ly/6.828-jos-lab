@@ -139,7 +139,15 @@ static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4: Your code here.
-	panic("sys_env_set_pgfault_upcall not implemented");
+	/* panic("sys_env_set_pgfault_upcall not implemented"); */
+	struct Env *env;
+
+	if (envid2env(envid, &env, 1) != 0)
+		return -E_BAD_ENV;
+
+	env->env_pgfault_upcall = func;
+    user_mem_assert(env, func, 4, 0);
+	return 0;
 }
 
 // Allocate a page of memory and map it at 'va' with permission
@@ -386,6 +394,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 			return sys_page_unmap(a1, (void *) a2);
 		case (SYS_env_set_status):
 			return sys_env_set_status(a1, a2);
+
+        // added system-call for lab4 - ex8,9,10
+		case (SYS_env_set_pgfault_upcall):
+			return sys_env_set_pgfault_upcall(a1, (void *) a2);
 
 		default:
 		return -E_INVAL;

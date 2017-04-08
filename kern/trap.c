@@ -344,7 +344,7 @@ trap(struct Trapframe *tf)
 		// into 'curenv->env_tf', so that running the environment
 		// will restart at the trap point.
 
-		// now, the code is running in kernel mode, but curenv is not 
+		// now, the code is running in kernel mode, but curenv is not
 		// kernel, curenv is the env just before the trap occured.
 		// so, the trap fram copy is needed, for saving the trapped
 		// env's registers.
@@ -369,7 +369,6 @@ trap(struct Trapframe *tf)
 	else
 		sched_yield();
 }
-
 
 void
 page_fault_handler(struct Trapframe *tf)
@@ -416,14 +415,84 @@ page_fault_handler(struct Trapframe *tf)
 	// Note that the grade script assumes you will first check for the page
 	// fault upcall and print the "user fault va" message below if there is
 	// none.  The remaining three checks can be combined into a single test.
-	//
-	// Hints:
-	//   user_mem_assert() and env_run() are useful here.
-	//   To change what the user environment runs, modify 'curenv->env_tf'
-	//   (the 'tf' variable points at 'curenv->env_tf').
+    //
+    // @TODO how to combine the three check into a single test?
+    //
+    // Hints:
+    //   user_mem_assert() and env_run() are useful here.
+    //   To change what the user environment runs, modify 'curenv->env_tf'
+    //   (the 'tf' variable points at 'curenv->env_tf').
 
-	// LAB 4: Your code here.
+    // LAB 4: Your code here.
 
+    // CORNER-1 If the user didn't set a pgfault handler
+    // CORNER-2 the trap-time stack pointer is out of bounds.
+    if (curenv->env_pgfault_upcall == NULL ||
+            tf->tf_esp > UXSTACKTOP ||
+            (tf->tf_esp > USTACKTOP && tf->tf_esp < (UXSTACKTOP - PGSIZE))) {
+        goto destroy;
+        // well, goto is nice manner sometimes.
+        // NOTE if didn't check exception overflow first, may be cuase error.
+    }
+
+    // ref: ZhangChi report P16
+    //   1. trap into kernel(stack) --> set the exception_stack(NOTE still within kernel)
+    //   2. switch from kernel stack to exception stack(exeute the inter_handle_prog)
+    //   3. return to user normal stack from _exceptino stack_
+    //   =======================================================
+    //   INFO exception stack is setted by the the user env itself, for the inter_handle_prog
+    //   @see lib/pgfault.c
+    uint32_t exception_stack_top;
+    if (tf->tf_esp < USTACKTOP) {
+        // currently, in user normal stack
+        // Switching from user stack to user exception stack
+        exception_stack_top = UXSTACKTOP - sizeof(struct UTrapframe);
+    } else {
+        // Recursive fault, we're already in the exception stack running the
+        // handler code.
+        // Note the -4 at the end, that's for the empty word separating the
+        // two exception trapframes.
+        exception_stack_top = tf->tf_esp - sizeof(struct UTrapframe) - 4;
+    }
+
+    // CORNER-3
+	// Make sure we can write to the top of our exception stack. This implicitly
+	// checks two conditions:
+	// 1) if the user process mapped a page from UXSTACKTOP to UXSTACKTOP - PGSIZE
+	// 2) if we've ran over the exception stack, beyond UXSTACKTOP - PGSIZE
+    // @TODO what's the meaning of PTE_P
+    //
+    // NOTE
+    // ref: ZhangChi report
+    //      the user exception stack is asked by the user when register the handler
+    user_mem_assert(curenv, (void *)exception_stack_top, sizeof(struct UTrapframe), PTE_W | PTE_U | PTE_P);
+
+	// Write the UTrapframe to the exception stack
+	struct UTrapframe *u_tf = (struct UTrapframe *) exception_stack_top;
+	u_tf->utf_fault_va = fault_va;
+	u_tf->utf_err = tf->tf_err;
+	u_tf->utf_regs = tf->tf_regs;
+	u_tf->utf_eip = tf->tf_eip;
+	u_tf->utf_eflags = tf->tf_eflags;
+	u_tf->utf_esp = tf->tf_esp;
+
+	// Now adjust the trap frame so that the user process returns to executing
+	// in the exception stack and runs code from the handler.
+	tf->tf_esp = (uintptr_t) exception_stack_top;
+	tf->tf_eip = (uintptr_t) curenv->env_pgfault_upcall;
+
+	env_run(curenv);
+    // NOTE restart -> switch to exception stack
+    //
+
+    // NOTE   user-mode      |    kern-mode  |   user-mode
+    //     user normal stack -> kernel stack -> exception stack
+    //       user program    |   system-call |   exception handler
+    // INFO
+    // We can see that, exce_handler is indeed a user env, howerver, the stack it runned
+    // is different from the normal user env.
+
+destroy:
 	// Destroy the environment that caused the fault.
 	cprintf("<%08x> user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
