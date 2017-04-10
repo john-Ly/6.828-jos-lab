@@ -223,6 +223,7 @@ env_setup_vm(struct Env *e)
     //
     // John: kern_pgdir --> uvpt (In kern/pmap.c:line164)
     // method-2: use memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+		// [UVPT, ULIM) is allocated PTSIZE, actually PGSIZE
     // But this method maybe is not directive... @TODO
 	for (i = PDX(UTOP); i < NPDENTRIES; i++)
 		e->env_pgdir[i] = kern_pgdir[i];
