@@ -29,7 +29,7 @@
 // page number field of address
 #define PGNUM(la)	(((uintptr_t) (la)) >> PTXSHIFT)
 
-// page directory index
+// page directory index(& to make the 10 bit left)
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x3FF)
 
 // page table index
@@ -60,10 +60,10 @@
 #define PDXSHIFT	22		// offset of PDX in a linear address
 
 // Page table/directory entry flags.
-#define PTE_P		0x001	// Present
-#define PTE_W		0x002	// Writeable
+#define PTE_P		0x001	// Present(page table OR page in memory or not)
+#define PTE_W		0x002	// Writeable(0: only read not write; 1: read + write)
 #define PTE_U		0x004	// User
-#define PTE_PWT		0x008	// Write-Through
+#define PTE_PWT		0x008	// Write-Through(or write back)
 #define PTE_PCD		0x010	// Cache-Disable
 #define PTE_A		0x020	// Accessed
 #define PTE_D		0x040	// Dirty

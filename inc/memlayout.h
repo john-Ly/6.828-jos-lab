@@ -12,11 +12,13 @@
  */
 
 // Global descriptor numbers
-#define GD_KT     0x08     // kernel text
-#define GD_KD     0x10     // kernel data
-#define GD_UT     0x18     // user text
-#define GD_UD     0x20     // user data
-#define GD_TSS0   0x28     // Task segment selector for CPU 0
+#define GD_KT     0x08     // kernel text: index=1, T1=0, RPL=0
+#define GD_KD     0x10     // kernel data: index=2, T1=0, RPL=0
+#define GD_UT     0x18     // user text: index=3, T1=0, RPL=0
+#define GD_UD     0x20     // user data: index=4, T1=0, RPL=0
+#define GD_TSS0   0x28     // Task segment selector for CPU 0: index=5, T1=0, RPL=0
+// @NOTE why the RPL-CPL is not right?
+// GD_UD'CPL should be 3 @NOTE see @kern/env.c
 
 /*
  * Virtual memory map:                                Permissions

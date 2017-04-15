@@ -102,6 +102,7 @@ static const char *trapname(int trapno)
 }
 
 
+// trap_init() should initialize the IDT with the addresses of these handlers.
 void
 trap_init(void)
 {
@@ -155,6 +156,7 @@ trap_init(void)
 }
 
 // Initialize and load the per-CPU TSS and IDT
+// the task state segment (TSS) specifies the segment selector and address where kernel stack lives.
 void
 trap_init_percpu(void)
 {
@@ -185,6 +187,7 @@ trap_init_percpu(void)
 	// when we trap to the kernel.
 	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - thiscpu->cpu_id * (KSTKSIZE + KSTKGAP);
 	thiscpu->cpu_ts.ts_ss0 = GD_KD;
+	// @TODO why stack segment point to GD_KD(kernel data segment)
 	thiscpu->cpu_ts.ts_iomb = sizeof(struct Taskstate);
 
 	// Initialize the TSS slot of the gdt.
@@ -275,7 +278,7 @@ trap_dispatch(struct Trapframe *tf)
             return;
     }
 		// switch: using break to jump out of the control flow
-		// However, using return instead hear to avoid invoke SYSTEM_CALL
+		// However, using return instead here to avoid invoke SYSTEM_CALL
 		// @NOTE bug appearence in lab4-ex6
 
 	// Handle spurious interrupts

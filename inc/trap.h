@@ -1,7 +1,14 @@
 #ifndef JOS_INC_TRAP_H
 #define JOS_INC_TRAP_H
 
-
+// John: Types of Mode Transfer
+// 1. *Interrupts* occur asynchronously — that is, they are triggered by an external
+// 		event and can cause a transfer to kernel mode after any user-mode instruction.
+// 2. *Processor exceptions*
+// 3. *system calls* synchronous events triggered by process execution.
+// =====> We usethe term *trap* to refer to any synchronous transfer of control
+// =====> from user mode to the kernel.
+//
 // John: @see https://pdos.csail.mit.edu/6.828/2016/readings/i386/s09_08.htm
 //       @see https://pdos.csail.mit.edu/6.828/2016/readings/i386/s09_09.htm
 //       @see https://pdos.csail.mit.edu/6.828/2016/readings/i386/s09_01.htm

@@ -115,6 +115,10 @@ boot_alloc(uint32_t n)
 	if ((uint32_t)nextfree - KERNBASE > (npages*PGSIZE))
 		panic("Out of memory\n");
 
+/*
+	cprintf("++++");
+	cprintf("nextfree_VA: %x\n", (uint32_t)nextfree);
+*/
 	return result;
 }
 
@@ -145,16 +149,36 @@ mem_init(void)
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
 
-	// Remove this line when you're ready to test this function.
-    /* panic("mem_init: This function is not finished\n"); */
-
-
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
 
-	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);  // it's VA: f0114000
+	// 'kern_pgdir' the start address of kern pgdir (va, pa);
+	// already mapped @entrypgdir file
 	// cprintf("VA: %x\n", (uint32_t)kern_pgdir);
+	// ++++++++++++++++++++++++++++++++++++++VA: 0
+	// ======================================VA: f0275000(about 2~3M) -- lab4
+	// @TODO the kern_pgdir is different from the first time
+	// May be the size of kernel increased in the later labs(add some functionality)
+	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);  // it's VA: f0114000 -- lab2
+	// cprintf("VA: %x\n", (uint32_t)kern_pgdir);
+
+	/* @NOTE in monitor.c file, kerninfo can display the kern segment info
+	Special kernel symbols:
+	  _start                  0010000c (phys)
+	  entry  f010000c (virt)  0010000c (phys)
+	  etext  f0106a21 (virt)  00106a21 (phys)
+	  edata  f023135c (virt)  0023135c (phys)
+	  end    f0274008 (virt)  00274008 (phys)
+	Kernel executable memory footprint: 1488KB
+
+	in init.c file, memset(end, 0, edata)
+	*/
+
 	memset(kern_pgdir, 0, PGSIZE);
+	// PGSIZE: one page(4K)
+	// map: 4M - one page table can map
+	// page table( each entry is 4 bytes(32 bits), 1024 entries) = 4*1024 = 4K
+	// *a page table cost 4K physical memory, can map 4M virtual memory*
 
 	//////////////////////////////////////////////////////////////////////
 	// Recursively insert PD in itself as a page table, to form
@@ -162,13 +186,9 @@ mem_init(void)
 	// (For now, you don't have understand the greater purpose of the
 	// following line.)
 
+	// Yeap, recursively insert --> PADDR(kern_pgdir)
 	// Permissions: kernel R, user R
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
-	/* cprintf("%x\n", (uint32_t)PADDR(kern_pgdir) | PTE_U | PTE_P);
-                           114005                   957
-	   cprintf("store_addr: %x ; kern_pgdir's index: %u\n", kern_pgdir[PDX(UVPT)] \
-					 , PDX(UVPT)); */
-
 
 	//////////////////////////////////////////////////////////////////////
 	// Allocate an array of npages 'struct PageInfo's and store it in 'pages'.
@@ -179,13 +199,26 @@ mem_init(void)
 	// Your code goes here:
 	pages = (struct PageInfo *) boot_alloc(npages * sizeof(struct PageInfo));
     memset(pages, 0, npages * sizeof(struct PageInfo));
-
+	// (256K page to store the PageInfo structure)
 
 	//////////////////////////////////////////////////////////////////////
-	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
+	// Make 'envs' point to an array of size 'NENV'(1024) of 'struct Env'.
 	// LAB 3: Your code here.
 	envs = (struct Env *) boot_alloc(NENV * sizeof(struct Env));
     memset(pages, 0, NENV * sizeof(struct Env));
+
+	/*
+		cprintf("====\n");
+		cprintf("store_addr: %x\n", &kern_pgdir[957]);  //store_addr: f0275ef4
+		cprintf("kern_pgdir_VA: %x\n", (uint32_t)kern_pgdir); // kern_pgdir_VA: f0275000 -- f0276000
+		cprintf("PDX(UVPT): %d\n", (uint32_t)PDX(UVPT));  // PDX(UVPT): 957
+		cprintf("pages_VA: %x\n", (uint32_t)pages);  // pages_VA: f0276000 -- f02b6000
+		cprintf("npages: %d\n", (uint32_t)npages);  // npages: 32768
+		cprintf("PageInfo_size: %d\n", sizeof(struct PageInfo));  // PageInfo_size: 8
+		cprintf("Env_size: %d\n", sizeof(struct Env));  // Env_size: 124
+		cprintf("Env_VA: %x\n", (uint32_t)envs);  // Env_VA: f02b6000 -- f02d5000
+		// Physical memory: 131072K available, base = 640K, extended = 130432K
+	*/
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -367,6 +400,7 @@ page_init(void)
     // pages of io_hole -- (1024K - 640K) / 4K = 96
     size_t num_iohole = 96;
 
+	// @NOTE the limit is npages --> totalmem(all the vailable memory)
 	for (i = 0; i < npages; i++) {
         if (i == 0 || // 1st page reserved for IDT & BIOS structures
             i == PGNUM(MPENTRY_PADDR) || // 7th page at MPRENTRY_PADDR, reserved for CPU startup code
@@ -381,6 +415,7 @@ page_init(void)
         pages[i].pp_link = page_free_list;
         page_free_list = &pages[i];
 
+				// @NOTE page_free_list point to the last free page.(@ high address) link-stack
         // well, this code will not be executed -- copy from jason(CSDN)
         /* pa = page2pa(&pages[i]); */
         /* if((pa == 0 || (pa >= IOPHYSMEM && pa <= ((uint32_t)boot_alloc(0) - KERNBASE) >> PGSHIFT )) && (pages[i].pp_ref == 0)) */
@@ -413,8 +448,11 @@ page_alloc(int alloc_flags)
     page_free_list = pp->pp_link;
     pp->pp_link = NULL;
 
-    if (alloc_flags & ALLOC_ZERO)
-        memset(page2kva(pp), 0, PGSIZE);
+    if (alloc_flags & ALLOC_ZERO) {
+			memset(page2kva(pp), 0, PGSIZE);
+			cprintf("=====");
+			cprintf("page2kva_VA: %x\n", (uint32_t)page2kva(pp));
+		}
 
 	return pp;
 }
@@ -576,6 +614,8 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
         new_page->pp_ref++; // should be pp_ref == 1
         *pde = (page2pa(new_page) | PTE_P | PTE_U | PTE_W); // top 20-bit
     }
+		//               PTE_ADDR() --> get the high 20 bits
+		//                              pt_base's pa
     pt_base = KADDR( PTE_ADDR(*pde) ); // (pa) --> (va)
 	return &pt_base[PTX(va)];
 }

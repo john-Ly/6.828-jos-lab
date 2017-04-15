@@ -47,6 +47,7 @@ _kaddr(const char *file, int line, physaddr_t pa)
 
 
 enum {
+	// @TODO bit operation
 	// For page_alloc, zero the returned physical page.
 	ALLOC_ZERO = 1<<0,
 };
@@ -72,6 +73,8 @@ static inline physaddr_t
 page2pa(struct PageInfo *pp)
 {
 	return (pp - pages) << PGSHIFT;   // (pp - pages) will return the number of items
+	// page2pa --> pages maintain the whole memory in PageInfo, page_init() just Initialize
+	// the content of each entry in pages
 }
 
 static inline struct PageInfo*

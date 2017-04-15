@@ -23,10 +23,13 @@ static struct Env *env_free_list;	// Free environment list
 
 // Global descriptor table.
 //
+// @NOTE see inc/mmu.h
+//
 // Set up global descriptor table (GDT) with separate segments for
 // kernel mode and user mode.  Segments serve many purposes on the x86.
 // We don't use any of their memory-mapping capabilities, but we need
-// them to switch privilege levels.
+// them to switch privilege levels. @NOTE like linux segmentation mechanism
+//                              http://www.cnblogs.com/tolimit/p/4775945.html
 //
 // The kernel and user segments are identical except for the DPL.
 // To load the SS register, the CPL must equal the DPL.  Thus,
@@ -108,11 +111,17 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 	return 0;
 }
 
+
 // Mark all environments in 'envs' as free, set their env_ids to 0,
 // and insert them into the env_free_list.
 // Make sure the environments are in the free list in the same order
 // they are in the envs array (i.e., so that the first call to
 // env_alloc() returns envs[0]).
+//
+// Intro: Initialize all of the Env structures in the envs array and
+// add them to the env_free_list. Also calls env_init_percpu, which
+// configures the segmentation hardware with separate segments for privilege
+// level 0 (kernel) and privilege level 3 (user).
 //
 void
 env_init(void)
@@ -146,12 +155,16 @@ env_init(void)
 }
 
 // Load GDT and segment descriptors.
+//
+// func: configures the segmentation hardware with separate segments for privilege
+// level 0 (kernel) and privilege level 3 (user).
 void
 env_init_percpu(void)
 {
 	lgdt(&gdt_pd);
 	// The kernel never uses GS or FS, so we leave those set to
 	// the user data segment.
+	// @NOTE defiend in inc/memlayout.h, where the RPL-bit is set as 0
 	asm volatile("movw %%ax,%%gs" : : "a" (GD_UD|3));
 	asm volatile("movw %%ax,%%fs" : : "a" (GD_UD|3));
 	// The kernel does use ES, DS, and SS.  We'll change between
@@ -175,6 +188,9 @@ env_init_percpu(void)
 //
 // Returns 0 on success, < 0 on error.  Errors include:
 //	-E_NO_MEM if page directory or table could not be allocated.
+//
+// Allocate a page directory for a new environment and initialize
+// the kernel portion of the new environment's address space.
 //
 static int
 env_setup_vm(struct Env *e)
@@ -209,6 +225,8 @@ env_setup_vm(struct Env *e)
 	// LAB 3: Your code here.
     p->pp_ref++;
     // set e->env_pgdir & init the page directory
+		// @NOTE page_alloc() just allocate a free page
+		// p -> virual page, page2kva(p) -> physical page
     e->env_pgdir = (pde_t *) page2kva(p);
 
 	//- The initial VA below UTOP is empty.
@@ -230,6 +248,7 @@ env_setup_vm(struct Env *e)
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
+	// @NOTE see kern/pmap.c 191 -> recursively insert
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
 
 	return 0;
@@ -254,6 +273,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 		return -E_NO_FREE_ENV;
 
 	// Allocate and set up the page directory for this environment.
+	// r = -E_NO_MEM; or 0 is OK   --> set env_pgdir
 	if ((r = env_setup_vm(e)) < 0)
 		return r;
 
@@ -314,6 +334,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 // Pages should be writable by user and kernel.
 // Panic if any allocation attempt fails.
 //
+// Allocates and maps physical memory for an environment
+// @TODO using boot_map_region() ?
+
 static void
 region_alloc(struct Env *e, void *va, size_t len)
 {
@@ -337,6 +360,8 @@ region_alloc(struct Env *e, void *va, size_t len)
         if(!pp)
             panic("region_alloc: not enough memory to allocated.\n");
         // round_down_start is iterated(variable)
+		// using page_insert()： It's the env_pgdir stuff, &  env in env_alloc() is
+		// setted, so just use page_insert()
 		int r = page_insert(e->env_pgdir, pp, round_down_start, PTE_W | PTE_U);
         // RETURNS:
         //   0 on success
@@ -370,6 +395,9 @@ region_alloc(struct Env *e, void *va, size_t len)
 // load_icode panics if it encounters problems.
 //  - How might load_icode fail?  What might be wrong with the given input?
 //
+// You will need to parse an ELF binary image, much like the boot loader already
+// does, and load its contents into the user address space of a new environment.
+
 static void
 load_icode(struct Env *e, uint8_t *binary)
 {
