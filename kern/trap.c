@@ -155,6 +155,10 @@ trap_init(void)
 	trap_init_percpu();
 }
 
+// ref: lab3
+// the processor ensures that the kernel can be entered only under carefully controlled conditions.
+// On the x86, two mechanisms work together to provide this protection: IDT + TSS
+//
 // Initialize and load the per-CPU TSS and IDT
 // the task state segment (TSS) specifies the segment selector and address where kernel stack lives.
 void
@@ -494,6 +498,7 @@ page_fault_handler(struct Trapframe *tf)
     // INFO
     // We can see that, exce_handler is indeed a user env, howerver, the stack it runned
     // is different from the normal user env.
+		// @see upcall kern/syscall.c :131
 
 destroy:
 	// Destroy the environment that caused the fault.

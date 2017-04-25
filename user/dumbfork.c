@@ -18,7 +18,7 @@ umain(int argc, char **argv)
 	// print a message and yield to the other a few times
 	for (i = 0; i < (who ? 10 : 20); i++) {
 		cprintf("%d: I am the %s!\n", i, who ? "parent" : "child");
-		sys_yield();
+		sys_yield(); // a program can switch two different processes due to sys_yield()
 	}
 }
 
@@ -43,7 +43,7 @@ dumbfork(void)
 	envid_t envid = 0;
 	uint8_t *addr;
 	int r;
-	extern unsigned char end[];
+	extern unsigned char end[];       // @TODO diff from kern/init.c:40: end
 
 	// Allocate a new child environment.
 	// The kernel will initialize it with a copy of our register state,
@@ -66,8 +66,13 @@ dumbfork(void)
 	// We're the parent.
 	// Eagerly copy our entire address space into the child.
 	// This is NOT what you should do in your fork implementation.
+	//
+	// @TODO end: the kernel part end. It's whole kernel & va ???
 	for (addr = (uint8_t*) UTEXT; addr < end; addr += PGSIZE)
 		duppage(envid, addr);
+
+	cprintf("====\n");
+	cprintf("end_VA: %x\n", (uint32_t)end); //end_VA: 802010
 
 	// Also copy the stack we are currently running on.
 	duppage(envid, ROUNDDOWN(&addr, PGSIZE));

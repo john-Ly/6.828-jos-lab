@@ -19,6 +19,9 @@ sched_yield(void)
 	// circular fashion starting just after the env this CPU was
 	// last running.  Switch to the first such environment found.
 	//
+	// @TODO elevator schedule algorithm -- avoid hungry
+	// (Weighted Round-Robin Scheduling)
+	//
 	// If no envs are runnable, but the environment previously
 	// running on this CPU is still ENV_RUNNING, it's okay to
 	// choose that environment.

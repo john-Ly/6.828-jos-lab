@@ -11,6 +11,23 @@
 #include <kern/env.h>
 #include <kern/cpu.h>
 
+// boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
+// static mapping: [va, va+size] <--Bijection--> <pa, pa+size>
+//
+// page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
+// Map the physical page 'pp' at virtual address 'va'.
+//
+// in mem_init(), just set the linear address to physical address mapping
+// legacy x86: need linear address; for other platform, maybe not
+// @ https://www.zhihu.com/question/41431386/answer/91115537
+// In jos, linear address = virtual address
+//
+// @ http://grid.hust.edu.cn/zyshao/OSEngineering.htm
+// the memory layout: some physical page mappint to different(or various)
+// 										virtual address.
+// Well, kernle can access to any memory address, while user can only access...
+// kernel_base: only for kernel
+
 // These variables are set by i386_detect_memory()
 size_t npages;			// Amount of physical memory (in pages)
 static size_t npages_basemem;	// Amount of base memory (in pages)
@@ -76,7 +93,7 @@ static void check_page_installed_pgdir(void);
 static int check_continuous(struct Page *pp, int num_page);
 static void check_n_pages(void);
 
-// This simple physical memory allocator is used only while JOS is setting
+// This *simple physical memory allocator* is used only while JOS is setting
 // up its virtual memory system.  page_alloc() is the real allocator.
 //
 // If n>0, allocates enough pages of contiguous physical memory to hold 'n'
@@ -88,6 +105,10 @@ static void check_n_pages(void);
 // If we're out of memory, boot_alloc should panic.
 // This function may ONLY be used during initialization,
 // before the page_free_list list has been set up.
+//
+// John:
+// just change the nextfree value to determine physical memory *allocation*
+
 static void *
 boot_alloc(uint32_t n)
 {
@@ -324,7 +345,7 @@ mem_init(void)
 }
 
 // Modify mappings in kern_pgdir to support SMP
-//   - Map the per-CPU stacks in the region [KSTACKTOP-PTSIZE, KSTACKTOP)
+// - Map the per-CPU stacks in the region [KSTACKTOP-PTSIZE, KSTACKTOP)
 //
 static void
 mem_init_mp(void)
@@ -450,8 +471,8 @@ page_alloc(int alloc_flags)
 
     if (alloc_flags & ALLOC_ZERO) {
 			memset(page2kva(pp), 0, PGSIZE);
-			cprintf("=====");
-			cprintf("page2kva_VA: %x\n", (uint32_t)page2kva(pp));
+			// cprintf("=====");
+			// cprintf("page2kva_VA: %x\n", (uint32_t)page2kva(pp));
 		}
 
 	return pp;
@@ -631,6 +652,11 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
+//
+// @NOTE
+// 'static' mapping -- allocate fixed physical page & mappint
+// (should not altered again)
+// inspired by the IO remap & map_desc (Bijection)
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
@@ -817,8 +843,8 @@ mmio_map_region(physaddr_t pa, size_t size)
 	//
 	// Your code here:
     size_t round_up_size = ROUNDUP(size, PGSIZE);
-    if (base + round_up_size > MMIOLIM)
-        panic("mmio_map_region: requested size to map went over MMIOLIM");
+    if (base + round_up_size > MMIOLIM || base + round_up_size < MMIOBASE)
+        panic("mmio_map_region: requested size to map went over MMIOLIM or below MMIOBASE");
 
     boot_map_region(kern_pgdir, base, round_up_size, pa, PTE_PCD | PTE_PWT | PTE_W);
 		// PTE_PCD: page cache disabled, PTE_PWT: page write through.

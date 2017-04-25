@@ -70,7 +70,7 @@
     General protection fault          13            Yes
     Page fault                        14            Yes
     Coprocessor error                 16            No
-    Two-byte SW interrupt             0-255         No 
+    Two-byte SW interrupt             0-255         No
  */
 
 TRAPHANDLER_NOEC(t_divide, T_DIVIDE)          # devide error

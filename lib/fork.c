@@ -1,7 +1,7 @@
 // implement fork from user space
 
 #include <inc/string.h>
-#include <inc/lib.h>
+#include <inc/lib.h>      // set_pgfault_handler
 
 // PTE_COW marks copy-on-write page table entries.
 // It is one of the bits explicitly allocated to user processes (PTE_AVAIL).
@@ -30,6 +30,7 @@ pgfault(struct UTrapframe *utf)
     // LAB 4: Your code here.
 
     // @TODO uvpd when to works?
+		// why check PTE_P & PTE_COW ???
     // kern_pgdir can be seen as page directory or page table
     if ( !(uvpd[PDX(addr)] & PTE_P ) )
         panic("pgfault : page dir PTE_P not set.\n");
@@ -47,10 +48,12 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 
 	// LAB 4: Your code here.
+	envid_t envid = sys_getenvid();
 
     // Allocate a page of memory and map it at 'va' with permission
     // 'perm' in the address space of 'envid'.
-	if ((r = sys_page_alloc(0, (void *)PFTEMP, PTE_P | PTE_U | PTE_W)) != 0)
+		// @TODO why use 0: 0 stands for the first process or the child process
+	if ((r = sys_page_alloc(envid, (void *)PFTEMP, PTE_P | PTE_U | PTE_W)) != 0)
 		panic("pgfault : sys_page_alloc: %e\n", r);
 
 	// Copy over -- the right page contains 'addr'
@@ -61,16 +64,16 @@ pgfault(struct UTrapframe *utf)
     // TODO: avoid memory leak(reference count)
     //  invole the mechanism COW
     //  ref: http://www.cnblogs.com/bdhmwz/p/5105346.html
-    if( (r = sys_page_unmap(0, src_addr)) < 0)
+    if( (r = sys_page_unmap(envid, src_addr)) < 0)
         panic("pgfault : sys_page_unmap error : %e.\n",r);
 
 	// Remap
-    if ((r = sys_page_map(0, PFTEMP, 0, src_addr, PTE_P | PTE_U | PTE_W)) != 0)
+    if ((r = sys_page_map(envid, PFTEMP, envid, src_addr, PTE_P | PTE_U | PTE_W)) != 0)
         panic("pgfault : sys_page_map: %e\n", r);
 
     // delete map of PFTEMP -> new page
-    if( (r = sys_page_unmap(0, PFTEMP)) < 0)
-        panic("pgfault : sys_page_unmap error : %e.\n",r);
+    // if( (r = sys_page_unmap(0, PFTEMP)) < 0)
+        // panic("pgfault : sys_page_unmap error : %e.\n",r);
 
     return;
 	/* panic("pgfault not implemented"); */
@@ -98,7 +101,7 @@ duppage(envid_t envid, unsigned pn)
 	if (uvpt[pn] & PTE_SHARE) {
 		if ((r = sys_page_map(this_envid, (void *) (pn*PGSIZE), envid, (void *) (pn*PGSIZE), uvpt[pn] & PTE_SYSCALL)) < 0)
 			panic("sys_page_map: %e\n", r);
-    } else if (uvpt[pn] & PTE_COW || uvpt[pn] & PTE_W) {
+  } else if (uvpt[pn] & PTE_COW || uvpt[pn] & PTE_W) {
 		if (uvpt[pn] & PTE_U)
 			perm |= PTE_U;
 
@@ -121,8 +124,8 @@ duppage(envid_t envid, unsigned pn)
 
 //
 // User-level fork with copy-on-write.
-// Set up our page fault handler appropriately.
-// Create a child.
+// Set up our page fault handler appropriately. --> set_pgfault_handler()
+// Create a child. --> sys_exofork()
 // Copy our address space and page fault handler setup to the child.
 // Then mark the child as runnable and return.
 //
@@ -142,7 +145,7 @@ fork(void)
     int r;
     envid_t envid;
 
-    set_pgfault_handler(pgfault);
+    set_pgfault_handler(pgfault);  // set pgfault handler for parent process & also for child process
     envid = sys_exofork();
 
     if (envid < 0)
@@ -151,6 +154,7 @@ fork(void)
         // Fix thisenv like dumbfork does and return 0
         thisenv = &envs[ENVX(sys_getenvid())];
         return 0;
+		}
 
 	// We're in the parent
     // Iterate over all pages until UTOP. Map all pages that are present
@@ -186,7 +190,8 @@ fork(void)
     r = sys_env_set_status(envid, ENV_RUNNABLE);
     if (r < 0)
         panic("fork : sys_env_set_status error : %e\n", r);
-    }
+
+		return envid; // @NOTE: without this return code cause *forktree* failed
 }
 
 // Challenge!

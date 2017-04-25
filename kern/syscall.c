@@ -90,7 +90,7 @@ sys_exofork(void)
 
     r = env_alloc(&new_env, curenv ? curenv->env_id : 0);
     if(r != 0)
-        return r;
+        return r;    // -E_NO_FREE_ENV
 
     // the page isn't be copied here @TODO
     new_env->env_status = ENV_NOT_RUNNABLE;
@@ -127,6 +127,10 @@ sys_env_set_status(envid_t envid, int status)
 	return 0;
 }
 
+// @NOTE
+// upcall --> kernel mode to user mode(like interrupt handler in user level)
+// using pointer to function to delivery the control flow
+//
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
 // Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
 // kernel will push a fault record onto the exception stack, then branch to
@@ -146,7 +150,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 		return -E_BAD_ENV;
 
 	env->env_pgfault_upcall = func;
-    user_mem_assert(env, func, 4, 0);
+  user_mem_assert(env, func, 4, 0); // check whether *env* can access the func
 	return 0;
 }
 
@@ -166,6 +170,9 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 //	-E_INVAL if perm is inappropriate (see above).
 //	-E_NO_MEM if there's no memory to allocate the new page,
 //		or to allocate any necessary page tables.
+//
+// Allocates a page of physical memory and maps it at a given virtual address
+// in a given environment's address space.
 static int
 sys_page_alloc(envid_t envid, void *va, int perm)
 {
@@ -220,6 +227,10 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 //	-E_INVAL if (perm & PTE_W), but srcva is read-only in srcenvid's
 //		address space.
 //	-E_NO_MEM if there's no memory to allocate any necessary page tables.
+//
+// Copy a page mapping (not the contents of a page!) from one environment's
+// address space to another, leaving a memory sharing arrangement in place so
+// that the new and the old mappings both refer to the same page of physical memory.
 static int
 sys_page_map(envid_t srcenvid, void *srcva,
 	     envid_t dstenvid, void *dstva, int perm)
@@ -250,13 +261,13 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	if ((perm & ~PTE_SYSCALL) != 0)
 		return -E_INVAL;
 
-    pte_t *pte_src;
-    struct PageInfo *pp = page_lookup(src_env->env_pgdir, srcva, &pte_src);
-    if (pp == NULL)
-        return -E_INVAL;
+  pte_t *pte_src;
+  struct PageInfo *pp = page_lookup(src_env->env_pgdir, srcva, &pte_src);
+  if (pp == NULL)
+      return -E_INVAL;
 
-    if (((perm & PTE_W) == PTE_W) && ((*pte_src & PTE_W) == 0))
-        return -E_INVAL;
+  if (((perm & PTE_W) == PTE_W) && ((*pte_src & PTE_W) == 0))
+      return -E_INVAL;
 
 	if (page_insert(dst_env->env_pgdir, pp, dstva, perm) != 0)
         return -E_NO_MEM;

@@ -22,6 +22,8 @@ void
 i386_init(void)
 {
 	extern char edata[], end[];
+//	cprintf("++++\n");
+//	cprintf("end_VA: %x\n", (uint32_t)end); // Not initialized yet
 
 	// Before doing anything else, complete the ELF loading process.
 	// Clear the uninitialized global data (BSS) section of our program.
@@ -34,6 +36,8 @@ i386_init(void)
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
 
+//	cprintf("----\n");
+//	cprintf("end_VA: %x\n", (uint32_t)end); //end_VA: f0274008
 	// Lab 2 memory management initialization functions
 	mem_init();
 

@@ -28,8 +28,10 @@ static struct Env *env_free_list;	// Free environment list
 // Set up global descriptor table (GDT) with separate segments for
 // kernel mode and user mode.  Segments serve many purposes on the x86.
 // We don't use any of their memory-mapping capabilities, but we need
-// them to switch privilege levels. @NOTE like linux segmentation mechanism
-//                              http://www.cnblogs.com/tolimit/p/4775945.html
+// them to switch privilege levels.
+//
+// @NOTE like linux segmentation mechanism -- set the segemnt base to 0
+// http://www.cnblogs.com/tolimit/p/4775945.html
 //
 // The kernel and user segments are identical except for the DPL.
 // To load the SS register, the CPL must equal the DPL.  Thus,
