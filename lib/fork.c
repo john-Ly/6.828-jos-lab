@@ -71,6 +71,7 @@ pgfault(struct UTrapframe *utf)
     if ((r = sys_page_map(envid, PFTEMP, envid, src_addr, PTE_P | PTE_U | PTE_W)) != 0)
         panic("pgfault : sys_page_map: %e\n", r);
 
+				// @TODO
     // delete map of PFTEMP -> new page
     // if( (r = sys_page_unmap(0, PFTEMP)) < 0)
         // panic("pgfault : sys_page_unmap error : %e.\n",r);
@@ -95,13 +96,14 @@ duppage(envid_t envid, unsigned pn)
 {
 	int r;
     uint32_t perm = PTE_P | PTE_COW;
+		// NOTE: this_envid -- src; envid -- dest
 	envid_t this_envid = thisenv->env_id;
 
 	// LAB 4: Your code here.
-	if (uvpt[pn] & PTE_SHARE) {
+	if (uvpt[pn] & PTE_SHARE) {	  /////  case-1
 		if ((r = sys_page_map(this_envid, (void *) (pn*PGSIZE), envid, (void *) (pn*PGSIZE), uvpt[pn] & PTE_SYSCALL)) < 0)
 			panic("sys_page_map: %e\n", r);
-  } else if (uvpt[pn] & PTE_COW || uvpt[pn] & PTE_W) {
+  } else if (uvpt[pn] & PTE_COW || uvpt[pn] & PTE_W) {  //// case-2
 		if (uvpt[pn] & PTE_U)
 			perm |= PTE_U;
 
@@ -113,10 +115,13 @@ duppage(envid_t envid, unsigned pn)
 		if ((r = sys_page_map(this_envid, (void *) (pn*PGSIZE), this_envid, (void *) (pn*PGSIZE), perm)) < 0)
 			panic("sys_page_map: %e\n", r);
 
+  //// case-3
 	} else { // map pages that are present but not writable or COW with their original permissions
 		if ((r = sys_page_map(this_envid, (void *) (pn*PGSIZE), envid, (void *) (pn*PGSIZE), uvpt[pn] & PTE_SYSCALL)) < 0)
 			panic("sys_page_map: %e\n", r);
 	}
+
+	// @NOTE case-1 & case-3 are the same operation though the different conditions
 
 	/* panic("duppage not implemented"); */
 	return 0;
@@ -145,7 +150,8 @@ fork(void)
     int r;
     envid_t envid;
 
-    set_pgfault_handler(pgfault);  // set pgfault handler for parent process & also for child process
+		// set pgfault handler for parent process & check whether the exception stack is initialized
+    set_pgfault_handler(pgfault);
     envid = sys_exofork();
 
     if (envid < 0)
@@ -164,6 +170,8 @@ fork(void)
 	uint32_t page_num;
 	pte_t *pte;
     // @NOTE PGSIZE only copy the right page
+		// @NOTE 2017-4-25 20:48
+		// Only copy the PTE_P, which means page in the main memory :)
 	for (page_num = 0; page_num < PGNUM(UTOP - PGSIZE); page_num++) {
 		uint32_t pdx = ROUNDDOWN(page_num, NPDENTRIES) / NPDENTRIES;
 		if ((uvpd[pdx] & PTE_P) == PTE_P &&
@@ -172,6 +180,11 @@ fork(void)
 		}
 	}
 
+		// initialize exception stack & register a pgfault-handler for child process
+		// --> envid indicate the child process
+		//
+		// @TODO the exception stack should set mannualy!
+		// @see http://www.cnblogs.com/bdhmwz/p/5105346.html  --> why copy this stack?
 
     // Allocate create exception stack, parent's exception stack cannot
     // be duppaged ! because at this time it's page fault are using it,
