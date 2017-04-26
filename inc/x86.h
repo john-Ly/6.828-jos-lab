@@ -223,6 +223,14 @@ read_esp(void)
 	return esp;
 }
 
+static inline uint32_t
+read_byte_at_addr(uint32_t *addr)
+{
+	uint32_t val;
+	asm volatile("movl (%1),%0" : "=r" (val) : "r" (addr));
+	return val;
+}
+
 static inline void
 cpuid(uint32_t info, uint32_t *eaxp, uint32_t *ebxp, uint32_t *ecxp, uint32_t *edxp)
 {
@@ -260,5 +268,18 @@ xchg(volatile uint32_t *addr, uint32_t newval)
 		     : "cc");
 	return result;
 }
+
+// copy from http://ftp.kh.edu.tw/Linux/SuSE/people/garloff/linux/k6mod.c
+// lab3 https://pdos.csail.mit.edu/6.828/2016/labs/lab3/#Exercise-7 challenge
+/* If your binutils don't accept this: upgrade! */
+#define rdmsr(msr,val1,val2) \
+	__asm__ __volatile__("rdmsr" \
+	: "=a" (val1), "=d" (val2) \
+	: "c" (msr))
+
+#define wrmsr(msr,val1,val2) \
+	__asm__ __volatile__("wrmsr" \
+	: /* no outputs */ \
+	: "c" (msr), "a" (val1), "d" (val2))
 
 #endif /* !JOS_INC_X86_H */

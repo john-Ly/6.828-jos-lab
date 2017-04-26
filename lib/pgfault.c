@@ -22,16 +22,22 @@ void (*_pgfault_handler)(struct UTrapframe *utf);
 // _pgfault_upcall routine when a page fault occurs.
 //
 void
-set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
-{
-	int r;
+set_pgfault_handler(void (*handler)(struct UTrapframe *utf)) {
+    int r;
 
-	if (_pgfault_handler == 0) {
-		// First time through!
-		// LAB 4: Your code here.
-		panic("set_pgfault_handler not implemented");
-	}
+    if (_pgfault_handler == 0) {
+        // First time through!
+        // LAB 4: Your code here.
 
-	// Save handler pointer for assembly to call.
-	_pgfault_handler = handler;
+        r = sys_page_alloc(thisenv->env_id, (void *) (UXSTACKTOP - PGSIZE), PTE_W | PTE_U | PTE_P);
+        if (r != 0)
+            panic("set_pg_fault_handler: sys_page_alloc failed. %e", r);
+
+        r = sys_env_set_pgfault_upcall(thisenv->env_id, _pgfault_upcall);
+        if (r != 0)
+            panic("set_pgfault_handler : sys_env_set_pgfault_upcall failed. %e.\n",r);
+    }
+
+    // Save handler pointer for assembly to call.
+    _pgfault_handler = handler;
 }

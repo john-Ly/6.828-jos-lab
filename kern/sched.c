@@ -19,6 +19,9 @@ sched_yield(void)
 	// circular fashion starting just after the env this CPU was
 	// last running.  Switch to the first such environment found.
 	//
+	// @TODO elevator schedule algorithm -- avoid hungry
+	// (Weighted Round-Robin Scheduling)
+	//
 	// If no envs are runnable, but the environment previously
 	// running on this CPU is still ENV_RUNNING, it's okay to
 	// choose that environment.
@@ -27,8 +30,32 @@ sched_yield(void)
 	// another CPU (env_status == ENV_RUNNING). If there are
 	// no runnable environments, simply drop through to the code
 	// below to halt the cpu.
+    //
+    // @TODO When drop through the switch, no one is alternative,
+    //       What's going on?
 
 	// LAB 4: Your code here.
+    idle = thiscpu->cpu_env;
+    uint32_t start = (idle != NULL) ? ENVX(idle->env_id) : 0;
+    uint32_t i = start;
+    bool first = true;
+
+    // 'first' usage is quite tricky @NOTE
+		// ref:file:///home/john/workspace/op_sys/ref/6.828-lab4-a-writeup.html#
+		// start the next to make sure the average distribution.
+		// There are two methods to dispatch
+    for(; i != start || first; i = (i+1)%NENV, first = false) {
+        if(envs[i].env_status == ENV_RUNNABLE) {
+            env_run(&envs[i]);
+            return;
+        }
+    }
+
+    // okay
+    if(idle && idle->env_status == ENV_RUNNING) {
+        env_run(idle);
+        return;
+    }
 
 	// sched_halt never returns
 	sched_halt();
@@ -80,4 +107,3 @@ sched_halt(void)
 		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
 }
-

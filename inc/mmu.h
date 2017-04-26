@@ -1,4 +1,4 @@
-#ifndef JOS_INC_MMU_H
+	#ifndef JOS_INC_MMU_H
 #define JOS_INC_MMU_H
 
 /*
@@ -29,7 +29,7 @@
 // page number field of address
 #define PGNUM(la)	(((uintptr_t) (la)) >> PTXSHIFT)
 
-// page directory index
+// page directory index(& to make the 10 bit left)
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x3FF)
 
 // page table index
@@ -37,6 +37,8 @@
 
 // offset in page
 #define PGOFF(la)	(((uintptr_t) (la)) & 0xFFF)
+// offset in 4M page
+#define LPGOFF(la)  (((uintptr_t)(la)) & 0x3FFFFF)
 
 // construct linear address from indexes and offset
 #define PGADDR(d, t, o)	((void*) ((d) << PDXSHIFT | (t) << PTXSHIFT | (o)))
@@ -48,6 +50,9 @@
 #define PGSIZE		4096		// bytes mapped by a page
 #define PGSHIFT		12		// log2(PGSIZE)
 
+#define LPGSIZE		2 * 1024 * 1024		// 4M page size
+#define LPGSHIFT	22		// log2(LPGSIZE)
+
 #define PTSIZE		(PGSIZE*NPTENTRIES) // bytes mapped by a page directory entry
 #define PTSHIFT		22		// log2(PTSIZE)
 
@@ -55,10 +60,10 @@
 #define PDXSHIFT	22		// offset of PDX in a linear address
 
 // Page table/directory entry flags.
-#define PTE_P		0x001	// Present
-#define PTE_W		0x002	// Writeable
+#define PTE_P		0x001	// Present(page table OR page in memory or not)
+#define PTE_W		0x002	// Writeable(0: only read not write; 1: read + write)
 #define PTE_U		0x004	// User
-#define PTE_PWT		0x008	// Write-Through
+#define PTE_PWT		0x008	// Write-Through(or write back)
 #define PTE_PCD		0x010	// Cache-Disable
 #define PTE_A		0x020	// Accessed
 #define PTE_D		0x040	// Dirty
@@ -72,8 +77,10 @@
 // Flags in PTE_SYSCALL may be used in system calls.  (Others may not.)
 #define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)
 
-// Address in page table or page directory entry
+// Address in page table or page directory entry -- 20-bit base addr
 #define PTE_ADDR(pte)	((physaddr_t) (pte) & ~0xFFF)
+// Address in 4MB page table
+#define LPTE_ADDR(lpte) ((physaddr_t)(lpte) & ~0x3FFFFF)
 
 // Control Register flags
 #define CR0_PE		0x00000001	// Protection Enable
