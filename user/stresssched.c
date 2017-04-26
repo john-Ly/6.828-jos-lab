@@ -1,5 +1,7 @@
 #include <inc/lib.h>
 
+// @TODO can not see how this code test the stress ?
+
 volatile int counter;
 
 void

@@ -56,15 +56,13 @@ void t_simderr();// 19
 void t_syscall();// 48
 // void t_default();
 
-/*
 void irq_timer();
 void irq_kbd();
 void irq_serial();
 void irq_spurious();
-void irq_e1000();
+/* void irq_e1000(); */
 void irq_ide();
 void irq_error();
-*/
 
 
 static const char *trapname(int trapno)
@@ -147,6 +145,16 @@ trap_init(void)
         }
     }
     */
+
+    // External interrupt 32-47
+    // istrap: 0 --> interrupt
+	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, irq_timer, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, irq_kbd, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, GD_KT, irq_serial, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, GD_KT, irq_spurious, 0);
+	/* SETGATE(idt[IRQ_OFFSET + IRQ_E1000], 0, GD_KT, irq_e1000, 0); */
+	SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, GD_KT, irq_ide, 0);
+	SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, irq_error, 0);
 
     // system-call >> 48
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, t_syscall, 3);
@@ -259,6 +267,15 @@ print_regs(struct PushRegs *regs)
 static void
 trap_dispatch(struct Trapframe *tf)
 {
+	// Handle spurious interrupts
+	// The hardware sometimes raises these because of noise on the
+	// IRQ line or other reasons. We don't care.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
+		cprintf("Spurious interrupt on irq 7\n");
+		print_trapframe(tf);
+		return;
+	}
+
     int32_t ret_code;
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
@@ -285,18 +302,15 @@ trap_dispatch(struct Trapframe *tf)
 		// However, using return instead here to avoid invoke SYSTEM_CALL
 		// @NOTE bug appearence in lab4-ex6
 
-	// Handle spurious interrupts
-	// The hardware sometimes raises these because of noise on the
-	// IRQ line or other reasons. We don't care.
-	if (tf->tf_trapno == IRQ_OFFSET + IRQ_SPURIOUS) {
-		cprintf("Spurious interrupt on irq 7\n");
-		print_trapframe(tf);
-		return;
-	}
 
 	// Handle clock interrupts. Don't forget to acknowledge the
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
+	if (tf->tf_trapno == IRQ_OFFSET + IRQ_TIMER) {
+        lapic_eoi();
+        sched_yield();
+		return;
+	}
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);

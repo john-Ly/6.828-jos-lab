@@ -99,15 +99,14 @@ TRAPHANDLER_NOEC(t_simderr, T_SIMDERR)        # SIMD floating point error
 # 48 sys_call
 TRAPHANDLER_NOEC(t_syscall, T_SYSCALL)        # system call
 
-/*
+# External interrupts(i.e., device interrupts)
 TRAPHANDLER_NOEC(irq_timer, IRQ_OFFSET + IRQ_TIMER)
 TRAPHANDLER_NOEC(irq_kbd, IRQ_OFFSET + IRQ_KBD)
 TRAPHANDLER_NOEC(irq_serial, IRQ_OFFSET + IRQ_SERIAL)
 TRAPHANDLER_NOEC(irq_spurious, IRQ_OFFSET + IRQ_SPURIOUS)
-TRAPHANDLER_NOEC(irq_e1000, IRQ_OFFSET + IRQ_E1000)
+# TRAPHANDLER_NOEC(irq_e1000, IRQ_OFFSET + IRQ_E1000)
 TRAPHANDLER_NOEC(irq_ide, IRQ_OFFSET + IRQ_IDE)
 TRAPHANDLER_NOEC(irq_error, IRQ_OFFSET + IRQ_ERROR)
-*/
 
 .data
 .globl idt_table
