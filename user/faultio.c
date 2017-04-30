@@ -12,7 +12,7 @@ umain(int argc, char **argv)
 	int diskno = 1;
 
 	if (read_eflags() & FL_IOPL_3)
-		cprintf("eflags wrong\n");
+        cprintf("eflags wrong\n");
 
 	// this outb to select disk 1 should result in a general protection
 	// fault, because user-level code shouldn't be able to use the io space.
