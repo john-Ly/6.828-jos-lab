@@ -42,21 +42,32 @@ bc_pgfault(struct UTrapframe *utf)
 	if (super && blockno >= super->s_nblocks)
 		panic("reading non-existent block %08x\n", blockno);
 
-	// Allocate a page in the disk map region, read the contents
+	// Allocate a page in the *disk map region*, read the contents
 	// of the block from the disk into that page.
 	// Hint: first round addr to page boundary. fs/ide.c has code to read
 	// the disk.
 	//
 	// LAB 5: you code here:
+    addr = ROUNDDOWN(addr, BLKSIZE);
+
+	if ((r = sys_page_alloc(0, addr, PTE_P | PTE_U | PTE_W)) != 0)
+		panic("in bc_pgfault, sys_page_alloc: error %e addr %08x\n", r, addr);
+
+    // one page allocation <--> one block read
+	if (ide_read(blockno * BLKSECTS, addr, BLKSECTS) != 0)
+		panic("in bc_pgfault, ide_read failed\n");
 
 	// Clear the dirty bit for the disk block page since we just read the
 	// block from disk
+    // update
 	if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) < 0)
 		panic("in bc_pgfault, sys_page_map: %e", r);
 
 	// Check that the block we read was allocated. (exercise for
 	// the reader: why do we do this *after* reading the block
 	// in?)
+	//
+	// @TODO maybe, when read a block into the main memory, the free flag is set somewhere
 	if (bitmap && block_is_free(blockno))
 		panic("reading free block %08x\n", blockno);
 }
@@ -77,7 +88,16 @@ flush_block(void *addr)
 		panic("flush_block of bad va %08x", addr);
 
 	// LAB 5: Your code here.
-	panic("flush_block not implemented");
+	/* panic("flush_block not implemented"); */
+	addr = ROUNDDOWN(addr, BLKSIZE);
+
+	if (va_is_mapped(addr) && va_is_dirty(addr)) {
+		if (ide_write(blockno * BLKSECTS, addr, BLKSECTS) != 0)
+			panic("ide_write failed\n");
+        int r;
+		if ((r = sys_page_map(0, addr, 0, addr, uvpt[PGNUM(addr)] & PTE_SYSCALL)) != 0)
+			panic("in flush_block, sys_page_map: error %e addr %08x\n", r, addr);
+    }
 }
 
 // Test that the block cache works, by smashing the superblock and
@@ -120,4 +140,3 @@ bc_init(void)
 	// cache the super block by reading it once
 	memmove(&super, diskaddr(1), sizeof super);
 }
-

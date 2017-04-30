@@ -6,6 +6,47 @@
 #include <inc/types.h>
 #include <inc/mmu.h>
 
+/*
+ * Virtual memory map for File System Process:
+ *
+ *    4 Gig -------->  +------------------------------+
+ *                     :              .               :
+ *                     :              .               :
+ *                     :              .               :
+ *    USTACKTOP  --->  +------------------------------+ 0xeebfe000
+ *                     |      Normal User Stack       | RW/RW  PGSIZE
+ *                     +------------------------------+ 0xeebfd000
+ *                     :              .               :
+ *                     :              .               :
+ *                     +------------------------------+
+ *                     |            1024              | 1024 * PGSIZE
+ *                     |          struct Fd *         |
+ * DISKMAP + DISKSIZE  +------------------------------+ 0xd0000000
+ *                     |                              |
+ *                     |                              |
+ *                     |     3GB IDE Disk Space       |
+ *                     |                              |
+ *                     |                              |
+ *    DISKMAP    --->  +------------------------------+ 0x10000000
+ *                     |     union Fsipc *fsreq       | RW/RW  PGSIZE
+ *    fsreq      --->  +------------------------------+ 0x0ffff000
+ *                     :              .               :
+ *                     :              .               :
+ *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
+ *                     |     Program Data & Heap      |
+ *    UTEXT -------->  +------------------------------+ 0x00800000          (8M)
+ *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
+ *                     |                              |
+ *    UTEMP -------->  +------------------------------+ 0x00400000      --+ (4M)
+ *                     |       Empty Memory (*)       |                   |
+ *                     | - - - - - - - - - - - - - - -|                   |
+ *                     |  User STAB Data (optional)   |                 PTSIZE
+ *    USTABDATA ---->  +------------------------------+ 0x00200000        | (2M)
+ *                     |       Empty Memory (*)       |                   |
+ *    0 ------------>  +------------------------------+                 --+
+ *
+ */
+
 // File nodes (both in-memory and on-disk)
 
 // Bytes per file system block - same as page size
@@ -41,7 +82,7 @@ struct File {
 	uint8_t f_pad[256 - MAXNAMELEN - 8 - 4*NDIRECT - 4];
 } __attribute__((packed));	// required only on some 64-bit machines
 
-// An inode block contains exactly BLKFILES 'struct File's
+// An inode block contains exactly BLKFILES 'struct File's  ---  4
 #define BLKFILES	(BLKSIZE / sizeof(struct File))
 
 // File types

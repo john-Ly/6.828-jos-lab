@@ -100,7 +100,7 @@ duppage(envid_t envid, unsigned pn)
 	envid_t this_envid = thisenv->env_id;
 
 	// LAB 4: Your code here.
-	if (uvpt[pn] & PTE_SHARE) {	  /////  case-1
+	if (uvpt[pn] & PTE_SHARE) {	  /////  case-1 @NOTE lab5 ex-8
 		if ((r = sys_page_map(this_envid, (void *) (pn*PGSIZE), envid, (void *) (pn*PGSIZE), uvpt[pn] & PTE_SYSCALL)) < 0)
 			panic("sys_page_map: %e\n", r);
   } else if (uvpt[pn] & PTE_COW || uvpt[pn] & PTE_W) {  //// case-2

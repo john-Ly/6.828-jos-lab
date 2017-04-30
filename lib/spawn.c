@@ -302,6 +302,23 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
+    int r;
+    envid_t this_envid = thisenv->env_id;
+	uint32_t page_num;
+	pte_t *pte;
+
+    for (page_num = 0; page_num < PGNUM(UTOP - PGSIZE); page_num++) {
+        uint32_t pdx = ROUNDDOWN(page_num, NPDENTRIES) / NPDENTRIES;
+        if ((uvpd[pdx] & PTE_P) == PTE_P &&
+            ((uvpt[page_num] & PTE_P) == PTE_P) &&
+            ((uvpt[page_num] & PTE_SHARE) == PTE_SHARE))
+        {
+			void *va = (void *) (page_num*PGSIZE);
+            if ((r = sys_page_map(this_envid, va, child, va, uvpt[page_num] & PTE_SYSCALL)) < 0)
+                panic("sys_page_map: %e\n", r);
+        }
+    }
+
 	return 0;
 }
 

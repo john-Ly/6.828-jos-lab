@@ -8,7 +8,6 @@
 
 #include "fs.h"
 
-
 #define debug 0
 
 // The file system server maintains three structures
@@ -28,6 +27,8 @@
 //    communicate with the server.  File IDs are a lot like
 //    environment IDs in the kernel.  Use openfile_lookup to translate
 //    file IDs to struct OpenFile.
+//
+// bundle *struct File* with *struct Fd* together
 
 struct OpenFile {
 	uint32_t o_fileid;	// file id
@@ -37,7 +38,7 @@ struct OpenFile {
 };
 
 // Max number of open files in the file system at once
-#define MAXOPEN		1024
+#define MAXOPEN		1024               // reserve 1024 * struct Fd for struct OpenFile
 #define FILEVA		0xD0000000
 
 // initialize to force into data section
@@ -47,6 +48,8 @@ struct OpenFile opentab[MAXOPEN] = {
 
 // Virtual address at which to receive page mappings containing client requests.
 union Fsipc *fsreq = (union Fsipc *)0x0ffff000;
+//
+// *var* above @see inc/fs.h file virtual memory map for File System Process
 
 void
 serve_init(void)
@@ -209,12 +212,22 @@ serve_read(envid_t envid, union Fsipc *ipc)
 {
 	struct Fsreq_read *req = &ipc->read;
 	struct Fsret_read *ret = &ipc->readRet;
+	struct OpenFile *o;
+    int r;
 
 	if (debug)
 		cprintf("serve_read %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// Lab 5: Your code here:
-	return 0;
+    // @see serve_set_size(), just above
+    if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+        return r;
+
+    // ssize_t file_read(struct File *f, void *buf, size_t count, off_t offset)
+	r = file_read(o->o_file, ret->ret_buf, req->req_n, o->o_fd->fd_offset);
+	if (r > 0)
+		o->o_fd->fd_offset += r;
+	return r;
 }
 
 
@@ -229,7 +242,19 @@ serve_write(envid_t envid, struct Fsreq_write *req)
 		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	panic("serve_write not implemented");
+	/* panic("serve_write not implemented"); */
+	struct OpenFile *o;
+	int r;
+
+	if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+		return r;
+
+	r = file_write(o->o_file, req->req_buf, req->req_n, o->o_fd->fd_offset);
+	if (r >= 0)
+		o->o_fd->fd_offset += r;
+
+	return r;
+
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the
@@ -302,7 +327,7 @@ serve(void)
 		perm = 0;
 		req = ipc_recv((int32_t *) &whom, fsreq, &perm);
 		if (debug)
-			cprintf("fs req %d from %08x [page %08x: %s]\n",
+			cprintf("fs req %d from %08x <page %08x: %s>\n",
 				req, whom, uvpt[PGNUM(fsreq)], fsreq);
 
 		// All requests must contain an argument page
@@ -322,6 +347,9 @@ serve(void)
 			r = -E_INVAL;
 		}
 		ipc_send(whom, r, pg, perm);
+
+		// @TODO handle a request in each pass, each pass is
+		// when to sys_page_map()
 		sys_page_unmap(0, fsreq);
 	}
 }
@@ -342,4 +370,3 @@ umain(int argc, char **argv)
         fs_test();
 	serve();
 }
-
