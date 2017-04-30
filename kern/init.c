@@ -24,6 +24,8 @@ void
 i386_init(void)
 {
 	extern char edata[], end[];
+//	cprintf("++++\n");
+//	cprintf("end_VA: %x\n", (uint32_t)end); // Not initialized yet
 
 	// Before doing anything else, complete the ELF loading process.
 	// Clear the uninitialized global data (BSS) section of our program.
@@ -36,11 +38,14 @@ i386_init(void)
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
 
+//	cprintf("----\n");
+//	cprintf("end_VA: %x\n", (uint32_t)end); //end_VA: f0274008
 	// Lab 2 memory management initialization functions
 	mem_init();
 
 	// Lab 3 user environment initialization functions
 	env_init();
+
 	trap_init();
 
 	// Lab 4 multiprocessor initialization functions
@@ -56,6 +61,14 @@ i386_init(void)
 
 	// Acquire the big kernel lock before waking up APs
 	// Your code here:
+	//
+	// John: when lock() happened, when to unlock() ?
+	// only one BP, why using lock??
+	// FIXED: using BIg Kernel Lock to make sure the *Only One CPU can
+	//     modify the kernel status.
+	//     So, consider this model, just ignore the CPUS, user mode envs.
+	//     focus on the right lock
+    lock_kernel();
 
 	// Starting non-boot CPUs
 	boot_aps();
@@ -74,6 +87,12 @@ i386_init(void)
 #else
 	// Touch all you want.
 	ENV_CREATE(user_icode, ENV_TYPE_USER);
+    /* ENV_CREATE(user_primes, ENV_TYPE_USER); */
+    // ENV_CREATE(user_idle, ENV_TYPE_USER);
+    // NOTE *idle* cause program idle(work for nothing)
+    //ENV_CREATE(user_yield, ENV_TYPE_USER);
+    //ENV_CREATE(user_yield, ENV_TYPE_USER);
+    //ENV_CREATE(user_yield, ENV_TYPE_USER);
 #endif // TEST*
 
 	// Should not be necessary - drains keyboard because interrupt has given up.
@@ -105,7 +124,7 @@ boot_aps(void)
 		if (c == cpus + cpunum())  // We've started already.
 			continue;
 
-		// Tell mpentry.S what stack to use 
+		// Tell mpentry.S what stack to use
 		mpentry_kstack = percpu_kstacks[c - cpus] + KSTKSIZE;
 		// Start the CPU at mpentry_start
 		lapic_startap(c->cpu_id, PADDR(code));
@@ -119,7 +138,7 @@ boot_aps(void)
 void
 mp_main(void)
 {
-	// We are in high EIP now, safe to switch to kern_pgdir 
+	// We are in high EIP now, safe to switch to kern_pgdir
 	lcr3(PADDR(kern_pgdir));
 	cprintf("SMP: CPU %d starting\n", cpunum());
 
@@ -133,9 +152,11 @@ mp_main(void)
 	// only one CPU can enter the scheduler at a time!
 	//
 	// Your code here:
+    lock_kernel();
+    sched_yield();
 
 	// Remove this after you finish Exercise 4
-	for (;;);
+	/* for (;;); */
 }
 
 /*

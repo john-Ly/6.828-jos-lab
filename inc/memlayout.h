@@ -12,17 +12,19 @@
  */
 
 // Global descriptor numbers
-#define GD_KT     0x08     // kernel text
-#define GD_KD     0x10     // kernel data
-#define GD_UT     0x18     // user text
-#define GD_UD     0x20     // user data
-#define GD_TSS0   0x28     // Task segment selector for CPU 0
+#define GD_KT     0x08     // kernel text: index=1, T1=0, RPL=0
+#define GD_KD     0x10     // kernel data: index=2, T1=0, RPL=0
+#define GD_UT     0x18     // user text: index=3, T1=0, RPL=0
+#define GD_UD     0x20     // user data: index=4, T1=0, RPL=0
+#define GD_TSS0   0x28     // Task segment selector for CPU 0: index=5, T1=0, RPL=0
+// @NOTE why the RPL-CPL is not right?
+// GD_UD'CPL should be 3 @NOTE see @kern/env.c
 
 /*
  * Virtual memory map:                                Permissions
  *                                                    kernel/user
  *
- *    4 Gig -------->  +------------------------------+
+ *    4 Gig -------->  +------------------------------+            (10000-0000)
  *                     |                              | RW/--
  *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *                     :              .               :
@@ -32,7 +34,7 @@
  *                     |                              | RW/--
  *                     |   Remapped Physical Memory   | RW/--
  *                     |                              | RW/--
- *    KERNBASE, ---->  +------------------------------+ 0xf0000000      --+
+ *    KERNBASE, ---->  +------------------------------+ 0xf0000000      --+   (3.75G = 3840M)
  *    KSTACKTOP        |     CPU0's Kernel Stack      | RW/--  KSTKSIZE   |
  *                     | - - - - - - - - - - - - - - -|                   |
  *                     |      Invalid Memory (*)      | --/--  KSTKGAP    |
@@ -66,14 +68,14 @@
  *                     .                              .
  *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
  *                     |     Program Data & Heap      |
- *    UTEXT -------->  +------------------------------+ 0x00800000
+ *    UTEXT -------->  +------------------------------+ 0x00800000          (8M)
  *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
  *                     |                              |
- *    UTEMP -------->  +------------------------------+ 0x00400000      --+
+ *    UTEMP -------->  +------------------------------+ 0x00400000      --+ (4M)
  *                     |       Empty Memory (*)       |                   |
  *                     | - - - - - - - - - - - - - - -|                   |
  *                     |  User STAB Data (optional)   |                 PTSIZE
- *    USTABDATA ---->  +------------------------------+ 0x00200000        |
+ *    USTABDATA ---->  +------------------------------+ 0x00200000        | (2M)
  *                     |       Empty Memory (*)       |                   |
  *    0 ------------>  +------------------------------+                 --+
  *

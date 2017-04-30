@@ -38,6 +38,8 @@ struct Fd {
 	union {
 		// File server files
 		struct FdFile fd_file;
+		// until lab5, we just have file; in later labs, we will introduce others
+
 		// Network sockets
 		struct FdSock fd_sock;
 	};

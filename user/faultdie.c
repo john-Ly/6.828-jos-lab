@@ -1,4 +1,9 @@
 // test user-level fault handler -- just exit when we fault
+//
+// Upcall ->
+// user program error -> kernel -> back to user handler
+// protection mechanism
+//
 
 #include <inc/lib.h>
 

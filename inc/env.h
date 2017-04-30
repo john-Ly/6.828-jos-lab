@@ -45,13 +45,19 @@ enum EnvType {
 	ENV_TYPE_NS,		// Network server
 };
 
+/*
+Like a Unix process, a JOS environment couples the concepts of "thread" and "address space".
+The thread is defined primarily by the saved registers (the env_tf field), and the address space is defined by the page directory and page tables pointed to by env_pgdir.
+To run an environment, the kernel must set up the CPU with both the saved registers and the appropriate address space.
+*/
+
 struct Env {
 	struct Trapframe env_tf;	// Saved registers
 	struct Env *env_link;		// Next free Env
 	envid_t env_id;			// Unique environment identifier
 	envid_t env_parent_id;		// env_id of this env's parent
 	enum EnvType env_type;		// Indicates special system environments
-	unsigned env_status;		// Status of the environment
+	unsigned env_status;		// Status of the environment  @NOTE *unsigned* is *unsigned int* for short
 	uint32_t env_runs;		// Number of times environment has run
 	int env_cpunum;			// The CPU that the env is running on
 

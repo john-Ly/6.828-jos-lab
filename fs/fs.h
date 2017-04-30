@@ -4,6 +4,9 @@
 #define SECTSIZE	512			// bytes per disk sector
 #define BLKSECTS	(BLKSIZE / SECTSIZE)	// sectors per block
 
+// @TODO why determine the disk map region ? If the *addr* is in the low 256M region,
+//       how can the file system process handle that ?
+//
 /* Disk block n, when in memory, is mapped into the file system
  * server's address space at DISKMAP + (n*BLKSIZE). */
 #define DISKMAP		0x10000000
@@ -46,4 +49,3 @@ int	alloc_block(void);
 
 /* test.c */
 void	fs_test(void);
-

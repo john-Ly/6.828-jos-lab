@@ -129,7 +129,9 @@ spawn(const char *prog, const char **argv)
 	if ((r = copy_shared_pages(child)) < 0)
 		panic("copy_shared_pages: %e", r);
 
-	child_tf.tf_eflags |= FL_IOPL_3;   // devious: see user/faultio.c
+	// @TODO why add this line? cause spawnfaultio.c failed
+	// (what's the real purpose from this line ?)
+	// child_tf.tf_eflags |= FL_IOPL_3;   // devious: see user/faultio.c
 	if ((r = sys_env_set_trapframe(child, &child_tf)) < 0)
 		panic("sys_env_set_trapframe: %e", r);
 
@@ -302,6 +304,22 @@ static int
 copy_shared_pages(envid_t child)
 {
 	// LAB 5: Your code here.
+    int r;
+    envid_t this_envid = thisenv->env_id;
+	uint32_t page_num;
+	pte_t *pte;
+
+    for (page_num = 0; page_num < PGNUM(UTOP - PGSIZE); page_num++) {
+        uint32_t pdx = ROUNDDOWN(page_num, NPDENTRIES) / NPDENTRIES;
+        if ((uvpd[pdx] & PTE_P) == PTE_P &&
+            ((uvpt[page_num] & PTE_P) == PTE_P) &&
+            ((uvpt[page_num] & PTE_SHARE) == PTE_SHARE))
+        {
+			void *va = (void *) (page_num*PGSIZE);
+            if ((r = sys_page_map(this_envid, va, child, va, uvpt[page_num] & PTE_SYSCALL)) < 0)
+                panic("sys_page_map: %e\n", r);
+        }
+    }
+
 	return 0;
 }
-
